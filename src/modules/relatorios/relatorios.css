@@ -1,0 +1,31 @@
+/* Relatórios. Usa as variáveis de src/estilos.css; tudo sob .rel. */
+.rel-sub { margin: -.4rem 0 1rem; }
+.rel-navegacao { display: flex; gap: .25rem; border-bottom: 1px solid var(--linha); margin-bottom: 1.25rem; }
+.rel-navegacao a { padding: .6rem 1rem; text-decoration: none; color: var(--suave); font-weight: 500; border-bottom: 3px solid transparent; margin-bottom: -1px; transition: color .15s, border-color .15s; }
+.rel-navegacao a:hover { color: var(--azul-900); }
+.rel-navegacao a.active { color: var(--azul-600); border-bottom-color: var(--azul-600); }
+
+.rel-botoes { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: 1rem; }
+.rel-nota { margin: .75rem 0 0; font-size: .85rem; display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+.rel-aviso { margin-bottom: 1rem; }
+.rel-a-carregar { opacity: .55; transition: opacity .2s; pointer-events: none; }
+
+.rel-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; animation: rel-sobe .35s ease-out; }
+.rel-resumo div { background: var(--azul-50); border: 1px solid var(--linha); border-radius: var(--raio); padding: .7rem .9rem; display: flex; flex-direction: column; }
+.rel-resumo span { font-size: .8rem; color: var(--suave); }
+.rel-resumo strong { font-family: var(--titulo); font-size: 1.5rem; color: var(--azul-900); font-variant-numeric: tabular-nums; }
+.rel-exportar { margin: 1rem 0 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--linha); }
+.rel-exportar .rel-botoes { margin-top: 0; }
+
+.rel-abas { display: flex; gap: .4rem; overflow-x: auto; margin-bottom: 1rem; padding-bottom: 2px; }
+.rel-aba { display: inline-flex; align-items: center; gap: .5rem; white-space: nowrap; font: inherit; font-weight: 500; padding: .5rem .9rem; border-radius: 99px; border: 1px solid var(--linha); background: var(--branco); color: var(--azul-800); cursor: pointer; transition: background .15s, color .15s; }
+.rel-aba:hover { background: var(--azul-100); }
+.rel-aba span { background: var(--azul-100); color: var(--azul-800); border-radius: 99px; padding: 0 .5rem; font-size: .8rem; }
+.rel-aba.activa { background: var(--azul-900); border-color: var(--azul-900); color: #fff; }
+.rel-aba.activa span { background: rgba(255, 255, 255, .2); color: #fff; }
+
+.rel-formato { background: var(--azul-100); color: var(--azul-800); }
+.so-leitores { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.rel td { max-width: 320px; overflow-wrap: anywhere; }
+@keyframes rel-sobe { from { opacity: 0; transform: translateY(8px); } }
+@media (max-width: 600px) { .rel-botoes .btn { flex: 1 1 100%; } .rel-navegacao a { flex: 1; text-align: center; } }

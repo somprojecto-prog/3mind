@@ -25,3 +25,9 @@ Entregue (IA 1, em nome da IA 2): documentos (envio, pesquisa, detalhe, correcç
 O OCR corre no navegador de quem envia o documento (PDF.js + Tesseract.js). Páginas de PDF com texto digital são lidas sem OCR.
 Na primeira utilização o Tesseract descarrega o motor e o idioma português de um CDN público; para ambiente institucional, aloje-os e defina `VITE_OCR_*` no `.env`.
 Formatos de NIF assumidos (confirmar com a AGT): 10 dígitos (empresa) e 9 dígitos + 2 letras + 3 dígitos (pessoa singular). Ver `docs/CONTRATO_TECNICO.md`.
+
+## Vercel
+1. Importar o repositório no Vercel (Framework: Vite; build `npm run build`; saída `dist`).
+2. Settings > Environment Variables: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. Não definir `VITE_BASE`.
+3. O `vercel.json` já trata das rotas (recarregar `/documentos` não dá 404).
+4. Supabase > Authentication > URL Configuration: acrescentar o endereço do Vercel em *Redirect URLs*.

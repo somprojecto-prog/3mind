@@ -1,0 +1,38 @@
+/* Notificações e estados reutilizáveis. Usa as variáveis de src/estilos.css. */
+
+/* ---------- Avisos ---------- */
+.n-avisos { position: fixed; right: 1rem; bottom: 1rem; z-index: 100; display: flex; flex-direction: column; gap: .6rem; width: min(380px, calc(100vw - 2rem)); pointer-events: none; }
+.n-aviso { pointer-events: auto; display: grid; grid-template-columns: auto 1fr auto; gap: .65rem; align-items: start; background: var(--branco); border: 1px solid var(--linha); border-left-width: 4px; border-radius: var(--raio); padding: .75rem .6rem .75rem .9rem; box-shadow: 0 8px 24px rgba(10, 37, 64, .16); animation: n-entra .22s ease-out; }
+.n-aviso p { margin: 0; font-size: .93rem; line-height: 1.4; padding-top: 1px; }
+.n-aviso-icone { margin-top: 1px; }
+.n-aviso-sucesso { border-left-color: var(--ok); } .n-aviso-sucesso .n-aviso-icone { color: var(--ok); }
+.n-aviso-erro { border-left-color: var(--erro); } .n-aviso-erro .n-aviso-icone { color: var(--erro); }
+.n-aviso-info { border-left-color: var(--azul-600); } .n-aviso-info .n-aviso-icone { color: var(--azul-600); }
+.n-aviso-fechar { background: none; border: 0; padding: 4px; border-radius: 6px; cursor: pointer; color: var(--suave); display: inline-flex; }
+.n-aviso-fechar:hover { background: var(--azul-100); color: var(--azul-900); }
+@keyframes n-entra { from { opacity: 0; transform: translateY(10px); } }
+@media (max-width: 600px) { .n-avisos { left: 1rem; right: 1rem; width: auto; bottom: .75rem; } }
+
+/* ---------- Carregamento ---------- */
+.n-roda { display: inline-block; flex: none; border: 2.5px solid var(--azul-100); border-top-color: var(--azul-600); border-radius: 50%; animation: n-gira .8s linear infinite; }
+.btn-primario .n-roda { border-color: rgba(255, 255, 255, .35); border-top-color: #fff; }
+@keyframes n-gira { to { transform: rotate(360deg); } }
+
+.n-esqueleto-grupo { display: flex; flex-direction: column; gap: .5rem; width: 100%; }
+.n-esqueleto { display: block; background: linear-gradient(90deg, var(--azul-100) 25%, #f3f8fd 50%, var(--azul-100) 75%); background-size: 200% 100%; animation: n-brilho 1.4s ease-in-out infinite; }
+@keyframes n-brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ---------- Estados vazio e erro ---------- */
+.n-vazio { display: flex; flex-direction: column; align-items: center; text-align: center; gap: .5rem; padding: 2rem 1rem; color: var(--suave); animation: n-surge .3s ease-out; }
+.n-vazio h3 { margin: 0; font-size: 1.05rem; font-weight: 600; color: var(--azul-900); }
+.n-vazio p { margin: 0; max-width: 44ch; font-size: .93rem; }
+.n-vazio .btn { margin-top: .6rem; }
+.n-vazio-icone { display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 50%; background: var(--azul-100); color: var(--azul-600); margin-bottom: .25rem; }
+.n-vazio-erro .n-vazio-icone { background: var(--erro-fundo); color: var(--erro); }
+@keyframes n-surge { from { opacity: 0; transform: translateY(6px); } }
+
+/* ---------- Progresso ---------- */
+.n-progresso { display: flex; align-items: center; gap: .6rem; }
+.n-progresso-pista { flex: 1; height: 8px; background: var(--azul-100); border-radius: 99px; overflow: hidden; }
+.n-progresso-barra { height: 100%; background: linear-gradient(90deg, var(--azul-600), var(--azul-300)); border-radius: 99px; transition: width .45s ease; }
+.n-progresso-valor { min-width: 3ch; text-align: right; font-size: .85rem; font-weight: 600; color: var(--azul-800); font-variant-numeric: tabular-nums; }

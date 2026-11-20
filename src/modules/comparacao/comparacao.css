@@ -1,0 +1,4 @@
+.cmp-tabela th[scope="row"] { background: var(--azul-50); white-space: nowrap; }
+.cmp-tabela thead th { min-width: 150px; word-break: break-word; }
+.cmp-dif td, .cmp-dif th[scope="row"] { background: var(--revisao-fundo); }
+.cmp-dif td:last-child { color: var(--revisao); }
