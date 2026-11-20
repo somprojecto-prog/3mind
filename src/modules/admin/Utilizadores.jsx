@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { UserPlus } from 'lucide-react';
+import { Check, UserPlus, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { PAPEIS } from '@/lib/permissoes';
@@ -17,6 +17,7 @@ export default function Utilizadores() {
   const [lista, setLista] = useState(null);
   const [form, setForm] = useState(VAZIO);
   const [aCriar, setACriar] = useState(false);
+  const [papeisNovos, setPapeisNovos] = useState({});
 
   const carregar = useCallback(async () => {
     const { data, error } = await supabase.from('profiles').select('*').order('criado_em', { ascending: false });
@@ -43,9 +44,52 @@ export default function Utilizadores() {
     carregar();
   }
 
+  const pendentes = (lista || []).filter((u) => u.pendente && !u.activo);
+
+  async function aprovar(u) {
+    await alterar(u.id, { activo: true, pendente: false, papel: papeisNovos[u.id] || 'operador' }, `Conta de ${u.email} aprovada.`);
+  }
+  async function recusar(u) {
+    if (!window.confirm(`Recusar o pedido de ${u.email}? A conta fica bloqueada.`)) return;
+    await alterar(u.id, { pendente: false }, 'Pedido recusado. A conta ficou bloqueada.');
+  }
+
   return (
     <>
       <h1>Utilizadores</h1>
+
+      <section className="cartao">
+        <h2>Pedidos de registo{pendentes.length > 0 && ` (${pendentes.length})`}</h2>
+        <p className="suave">Quem cria conta pelo site fica aqui a aguardar. Só depois de aprovar a pessoa consegue entrar. Escolha o papel certo antes de aprovar.</p>
+        {!lista ? <Carregando /> : pendentes.length === 0 ? (
+          <p className="suave">Não há pedidos por aprovar.</p>
+        ) : (
+          <div className="tabela-rolar">
+            <table>
+              <thead><tr><th>Nome</th><th>Email</th><th>Pedido em</th><th>Papel</th><th></th></tr></thead>
+              <tbody>
+                {pendentes.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.nome || '—'}</td>
+                    <td>{u.email}</td>
+                    <td>{new Date(u.criado_em).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                    <td>
+                      <select value={papeisNovos[u.id] || 'operador'} aria-label={`Papel para ${u.email}`}
+                        onChange={(e) => setPapeisNovos((p) => ({ ...p, [u.id]: e.target.value }))}>
+                        {Object.entries(PAPEIS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <button className="btn btn-primario" onClick={() => aprovar(u)}><Check size={16} aria-hidden="true" />Aprovar</button>{' '}
+                      <button className="btn btn-suave" onClick={() => recusar(u)}><X size={16} aria-hidden="true" />Recusar</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <section className="cartao">
         <h2>Criar conta</h2>
@@ -83,11 +127,11 @@ export default function Utilizadores() {
                           {Object.entries(PAPEIS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                         </select>
                       </td>
-                      <td><span className={`etiqueta ${u.activo ? 'etiqueta-ok' : 'etiqueta-erro'}`}>{u.activo ? 'Activa' : 'Bloqueada'}</span></td>
+                      <td><span className={`etiqueta ${u.activo ? 'etiqueta-ok' : 'etiqueta-erro'}`}>{u.activo ? 'Activa' : u.pendente ? 'A aguardar' : 'Bloqueada'}</span></td>
                       <td>
                         <button className="btn btn-suave" disabled={sou}
-                          onClick={() => alterar(u.id, { activo: !u.activo }, u.activo ? 'Conta bloqueada.' : 'Conta desbloqueada.')}>
-                          {u.activo ? 'Bloquear' : 'Desbloquear'}
+                          onClick={() => alterar(u.id, u.activo ? { activo: false } : { activo: true, pendente: false }, u.activo ? 'Conta bloqueada.' : 'Conta desbloqueada.')}>
+                          {u.activo ? 'Bloquear' : u.pendente ? 'Aprovar' : 'Desbloquear'}
                         </button>
                       </td>
                     </tr>

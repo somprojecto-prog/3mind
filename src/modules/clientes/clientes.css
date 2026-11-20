@@ -1,0 +1,10 @@
+.cl-pesquisa { display: flex; gap: 1rem; align-items: end; flex-wrap: wrap; margin-bottom: 1rem; }
+.cl-pesquisa label { display: flex; flex-direction: column; gap: .25rem; flex: 1 1 260px; font-size: .9rem; color: var(--suave); }
+.cl-linha { cursor: pointer; }
+.cl-linha:hover td { background: var(--azul-50); }
+.cl-linha button { all: unset; cursor: pointer; color: var(--azul-600); font-weight: 500; }
+.cl-linha button:focus-visible { outline: 3px solid var(--azul-300); outline-offset: 2px; }
+.cl-docs td { background: var(--azul-50); padding-left: 2rem; }
+.cl-docs a { color: var(--azul-600); text-decoration: none; } .cl-docs a:hover { text-decoration: underline; }
+.cl-aviso { color: var(--suave); font-size: .85rem; margin-top: .75rem; }
+.cl-rever { color: var(--erro); font-weight: 600; }

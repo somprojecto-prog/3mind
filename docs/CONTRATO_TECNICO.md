@@ -15,7 +15,7 @@ Cada IA só edita a sua linha em `src/app/modulos.jsx`. Dependências novas (`np
 `admin`, `supervisor`, `operador`, `auditor`. A base de dados decide o acesso (RLS); `src/lib/permissoes.js` só esconde opções no ecrã.
 - Operador vê apenas os seus documentos. Supervisor, auditor e admin vêem todos.
 - Auditor só lê (e gera relatórios). Só o admin apaga documentos.
-- Conta bloqueada (`profiles.activo = false`) perde todo o acesso.
+- Conta bloqueada (`profiles.activo = false`) perde todo o acesso. Registo próprio: a conta nasce com `activo = false` e `pendente = true` (migração `003`) até o admin aprovar.
 - Novas permissões: pedir à IA 1 para acrescentar em `permissoes.js` e nas políticas.
 
 ## 3. Tabelas (ver `supabase/migrations/001_fundacao.sql`)

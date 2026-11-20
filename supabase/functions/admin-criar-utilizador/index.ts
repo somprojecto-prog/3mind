@@ -35,7 +35,8 @@ Deno.serve(async (req) => {
     });
     if (error) return json({ erro: error.message }, 400);
 
-    await admin.from('profiles').update({ nome: nome.trim(), papel }).eq('id', data.user.id);
+    // Conta criada pelo administrador: fica activa já (as contas de registo próprio nascem pendentes).
+    await admin.from('profiles').update({ nome: nome.trim(), papel, activo: true, pendente: false }).eq('id', data.user.id);
     await admin.from('auditoria').insert({
       utilizador_id: user.id, accao: 'criar_utilizador', entidade: 'profiles',
       entidade_id: data.user.id, detalhes: { email, papel },

@@ -12,14 +12,14 @@ const PERMISSOES = {
   supervisor: [
     'painel.ver', 'documentos.ver', 'documentos.enviar', 'documentos.editar',
     'validacao.ver', 'validacao.resolver', 'comparacao.usar',
-    'fila.ver', 'fila.gerir', 'relatorios.gerar',
+    'fila.ver', 'fila.gerir', 'relatorios.gerar', 'clientes.ver',
   ],
   operador: [
     'painel.ver', 'documentos.ver', 'documentos.enviar', 'documentos.editar',
     'validacao.ver', 'validacao.resolver', 'comparacao.usar',
-    'fila.ver', 'relatorios.gerar',
+    'fila.ver', 'relatorios.gerar', 'clientes.ver',
   ],
-  auditor: ['painel.ver', 'documentos.ver', 'validacao.ver', 'fila.ver', 'relatorios.gerar', 'admin.auditoria'],
+  auditor: ['painel.ver', 'documentos.ver', 'clientes.ver', 'validacao.ver', 'fila.ver', 'relatorios.gerar', 'admin.auditoria'],
 };
 
 export function pode(papel, permissao) {

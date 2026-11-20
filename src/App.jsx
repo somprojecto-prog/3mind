@@ -6,6 +6,7 @@ import { configurado } from '@/lib/supabase';
 import Layout from '@/app/Layout';
 import { MODULOS } from '@/app/modulos';
 import Login from '@/modules/auth/Login';
+import Registar from '@/modules/auth/Registar';
 import Recuperar from '@/modules/auth/Recuperar';
 import Redefinir from '@/modules/auth/Redefinir';
 
@@ -29,6 +30,7 @@ export default function App() {
       <Avisos />
       <Routes>
         <Route path="/entrar" element={<SoParaVisitantes><Login /></SoParaVisitantes>} />
+        <Route path="/registar" element={<SoParaVisitantes><Registar /></SoParaVisitantes>} />
         <Route path="/recuperar" element={<SoParaVisitantes><Recuperar /></SoParaVisitantes>} />
         <Route path="/redefinir" element={<Redefinir />} />
         <Route element={<RotaProtegida><Layout /></RotaProtegida>}>

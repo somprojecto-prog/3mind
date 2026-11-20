@@ -1,0 +1,10 @@
+.info-caixa { background: var(--info-fundo); border: 1px solid var(--azul-300); border-radius: var(--raio); padding: .9rem 1rem; margin: 1rem 0 0; font-size: .92rem; }
+.info-caixa h3 { margin: 0 0 .4rem; font-size: 1rem; color: var(--azul-900); }
+.info-caixa ol, .info-caixa ul { margin: .3rem 0 0; padding-left: 1.2rem; }
+.info-caixa li { margin: .2rem 0; }
+.info-pendente { background: var(--info-fundo); color: var(--azul-900); padding: .6rem .8rem; border-radius: var(--raio); margin: 0; }
+.requisitos { list-style: none; margin: 0; padding: 0; font-size: .85rem; color: var(--suave); display: grid; gap: .15rem; }
+.requisitos .cumpre { color: var(--ok); }
+.requisitos li::before { content: '○ '; }
+.requisitos .cumpre::before { content: '✓ '; }
+.sucesso-caixa { background: var(--ok-fundo); color: var(--ok); padding: .8rem 1rem; border-radius: var(--raio); margin: 1rem 0 0; }

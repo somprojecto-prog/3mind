@@ -4,8 +4,8 @@ Plataforma de inteligência documental (OCR, validação, comparação e relató
 
 ## Arrancar
 1. Criar um projecto no Supabase.
-2. SQL Editor: executar `supabase/migrations/001_fundacao.sql` e depois `002_modulo_documentos.sql`.
-3. Authentication > Providers > Email: **desligar "Allow new users to sign up"** (as contas são criadas pelo administrador).
+2. SQL Editor: executar `supabase/migrations/001_fundacao.sql`, depois `002_modulo_documentos.sql` e `003_registo_com_aprovacao.sql`.
+3. Authentication > Providers > Email: **ligar** "Allow new users to sign up" e **"Confirm email"**. Em Authentication > Sign In / Providers, palavra-passe com mínimo de 10 caracteres e protecção contra palavras-passe vazadas. Em Authentication > Attack Protection, activar o **CAPTCHA**.
 4. Authentication > URL Configuration: acrescentar o endereço do site (ex.: `http://localhost:5173` e o de produção) em *Redirect URLs*.
 5. Criar o primeiro utilizador em Authentication > Users e promovê-lo a administrador:
    `update public.profiles set papel = 'admin' where email = 'o-seu-email';`
@@ -19,6 +19,7 @@ Compilar com `VITE_BASE=/nome-do-repositorio/ npm run build` (o script copia `in
 ## Estado
 Entregue (fundação): login, recuperação de palavra-passe, perfis e permissões, RLS, bucket privado, layout, utilizadores, auditoria.
 Entregue (IA 3): painel, relatórios (XLSX, PDF, CSV) e notificações.
+Entregue (extra): página Clientes (documentos agrupados por NIF; `src/modules/clientes`).
 Entregue (IA 1, em nome da IA 2): documentos (envio, pesquisa, detalhe, correcção manual), OCR no navegador, validação, comparação e fila com retoma.
 
 ## OCR
@@ -31,3 +32,10 @@ Formatos de NIF assumidos (confirmar com a AGT): 10 dígitos (empresa) e 9 dígi
 2. Settings > Environment Variables: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. Não definir `VITE_BASE`.
 3. O `vercel.json` já trata das rotas (recarregar `/documentos` não dá 404).
 4. Supabase > Authentication > URL Configuration: acrescentar o endereço do Vercel em *Redirect URLs*.
+
+## Registo com aprovação
+- Qualquer pessoa pode pedir conta em `/registar`; tem de confirmar o email.
+- A conta nasce **bloqueada e pendente**, com o papel `operador` (nunca escolhido pelo cliente). Sem aprovação, a base de dados nega todo o acesso (RLS).
+- O administrador aprova ou recusa em **Utilizadores > Pedidos de registo** e define o papel.
+- Contas criadas pelo administrador (botão *Criar conta*) ficam activas logo.
+- Palavras-passe: guardadas apenas como hash pelo Supabase Auth. Ligação em HTTPS; dados e ficheiros cifrados em repouso pelo Supabase.

@@ -11,6 +11,7 @@ export function AuthProvider({ children }) {
   const [carregando, setCarregando] = useState(true);
   const [recuperacao, setRecuperacao] = useState(false);
   const [mensagemBloqueio, setMensagemBloqueio] = useState('');
+  const [contaPendente, setContaPendente] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -36,7 +37,12 @@ export function AuthProvider({ children }) {
       if (error || !data) {
         setMensagemBloqueio('Não foi possível carregar o seu perfil. Tente novamente.');
         await supabase.auth.signOut();
+      } else if (!data.activo && data.pendente) {
+        setContaPendente(true);
+        setMensagemBloqueio('A sua conta está a aguardar aprovação do administrador. Receberá acesso assim que for aprovada.');
+        await supabase.auth.signOut();
       } else if (!data.activo) {
+        setContaPendente(false);
         setMensagemBloqueio('A sua conta está bloqueada. Contacte o administrador.');
         await supabase.auth.signOut();
       } else {
@@ -48,10 +54,12 @@ export function AuthProvider({ children }) {
   }, [userId]);
 
   const entrar = useCallback(async (email, palavraPasse) => {
-    setMensagemBloqueio('');
+    setMensagemBloqueio(''); setContaPendente(false);
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: palavraPasse });
     if (error) {
-      return { erro: error.message === 'Invalid login credentials' ? 'Email ou palavra-passe incorrectos.' : 'Não foi possível entrar. Tente novamente.' };
+      if (error.message === 'Invalid login credentials') return { erro: 'Email ou palavra-passe incorrectos.' };
+      if (/email not confirmed/i.test(error.message)) return { erro: 'Confirme primeiro o email: abra a mensagem que lhe enviámos (veja também o spam).' };
+      return { erro: 'Não foi possível entrar. Tente novamente.' };
     }
     registarAuditoria('login');
     return {};
@@ -63,8 +71,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const valor = useMemo(
-    () => ({ sessao, perfil, carregando, recuperacao, setRecuperacao, mensagemBloqueio, entrar, sair }),
-    [sessao, perfil, carregando, recuperacao, mensagemBloqueio, entrar, sair],
+    () => ({ sessao, perfil, carregando, recuperacao, setRecuperacao, mensagemBloqueio, contaPendente, entrar, sair }),
+    [sessao, perfil, carregando, recuperacao, mensagemBloqueio, contaPendente, entrar, sair],
   );
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }
