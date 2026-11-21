@@ -81,13 +81,13 @@ async function processar(item) {
   const docId = item.documento_id;
   let fraccao = 0;
   let ultimo = 0;
-  const relatar = (campos) => supabase.from('fila_processamento').update(campos).eq('id', item.id);
-  const progresso = (f, checkpoint) => {
+  const relatar = async (campos) => { await supabase.from('fila_processamento').update(campos).eq('id', item.id); };
+  const progresso = async (f, checkpoint) => {
     fraccao = f;
     const agora = Date.now();
-    if (!checkpoint && agora - ultimo < 1500 && f < 1) return Promise.resolve();
+    if (!checkpoint && agora - ultimo < 1500 && f < 1) return;
     ultimo = agora;
-    return relatar({ progresso: Math.min(95, Math.round(5 + f * 90)), ...(checkpoint ? { checkpoint } : {}) });
+    await relatar({ progresso: Math.min(95, Math.round(5 + f * 90)), ...(checkpoint ? { checkpoint } : {}) });
   };
 
   try {
@@ -103,7 +103,7 @@ async function processar(item) {
       checkpoint: item.checkpoint,
       cancelado: () => parado,
       aoProgresso: (f) => { progresso(f).catch(() => {}); },
-      aoCheckpoint: (cp) => progresso(fraccao, cp),
+      aoCheckpoint: (cp) => progresso(fraccao, cp).catch(() => {}),
     });
 
     await gravarLeitura(docId, leitura);
