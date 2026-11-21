@@ -1,31 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
 import { GitCompare } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { registarAuditoria } from '@/lib/auditoria';
 import { aviso, EstadoErro, EstadoVazio, Esqueleto, mensagemErro } from '@/shared/notificacoes';
-import { CAMPOS, ROTULO_CAMPO } from '../ocr/extracao';
+import { rotuloCampo, tipoCampo } from '../analise/perfis';
+import { normalizarComparacao } from '../analise/motor/campos';
 import { EstadoTag } from '../documentos/Componentes';
 import { ROTULO_ESTADO, formatarData, formatarDataHora } from '../documentos/estados';
 import { listarDocumentos } from '../documentos/servico';
 import './comparacao.css';
 
 const MAXIMO = 6;
-const semAcentos = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-// Dois valores "iguais" para a comparação: ignora maiúsculas, espaços, pontuação e formatos numéricos.
-function normalizar(campo, valor) {
-  const v = String(valor ?? '').trim();
-  if (campo === 'valor') return Number.isFinite(Number(v)) ? Number(v).toFixed(2) : v;
-  if (campo === 'nome') return semAcentos(v).toLowerCase().replace(/\s+/g, ' ');
-  if (campo === 'data') return v;
-  return v.toUpperCase().replace(/[\s.\-/]/g, '');
-}
-
 async function construir(ids) {
   const [docs, dados] = await Promise.all([
     supabase.from('documentos').select('id, nome_ficheiro, estado, nif, referencia, data_documento, paginas, categorias(nome)').in('id', ids),
-    supabase.from('dados_extraidos').select('documento_id, campo, valor, corrigido_manual').in('documento_id', ids),
+    supabase.from('dados_extraidos').select('documento_id, campo, valor, corrigido_manual, pagina').in('documento_id', ids),
   ]);
   if (docs.error) throw docs.error;
   if (dados.error) throw dados.error;
@@ -38,17 +29,19 @@ async function construir(ids) {
     linhas.push({ chave, rotulo, celulas, diferente: new Set(conjuntos).size > 1 });
   };
 
-  for (const campo of CAMPOS) {
+  const ignorados = new Set(['item', 'movimento', 'clausula']);
+  const campos = [...new Set(dados.data.map((r) => r.campo))].filter((c) => !ignorados.has(c));
+  for (const campo of campos) {
     const celulas = documentos.map((d) => {
       const vistos = new Map();
       for (const r of dados.data) {
         if (r.documento_id !== d.id || r.campo !== campo || !String(r.valor ?? '').trim()) continue;
-        const norma = normalizar(campo, r.valor);
-        if (!vistos.has(norma)) vistos.set(norma, { texto: r.valor, norma });
+        const norma = normalizarComparacao(tipoCampo(campo), r.valor);
+        if (!vistos.has(norma)) vistos.set(norma, { texto: r.valor, norma, pagina: r.pagina });
       }
       return [...vistos.values()];
     });
-    if (celulas.some((c) => c.length)) juntar(ROTULO_CAMPO[campo], celulas, campo);
+    if (celulas.some((c) => c.length)) juntar(rotuloCampo(campo), celulas, campo);
   }
   const meta = [
     ['Categoria', (d) => d.categorias?.nome], ['Páginas', (d) => d.paginas], ['Estado', (d) => ROTULO_ESTADO[d.estado]],
@@ -66,7 +59,8 @@ export default function Comparacao() {
   const [q, setQ] = useState('');
   const [lista, setLista] = useState(null);
   const [erroLista, setErroLista] = useState(false);
-  const [escolhidos, setEscolhidos] = useState([]);
+  const [params] = useSearchParams();
+  const [escolhidos, setEscolhidos] = useState(() => (params.get('docs') || '').split(',').filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, MAXIMO));
   const [resultado, setResultado] = useState(null);
   const [aComparar, setAComparar] = useState(false);
   const [recentes, setRecentes] = useState([]);
@@ -146,7 +140,7 @@ export default function Comparacao() {
             <tbody>{resultado.linhas.map((l) => (
               <tr key={l.chave} className={l.diferente ? 'cmp-dif' : ''}>
                 <th scope="row">{l.rotulo}</th>
-                {l.celulas.map((c, i) => <td key={resultado.documentos[i].id}>{c.length ? c.map((x) => <div key={x.norma}>{x.texto}</div>) : <span className="suave">—</span>}</td>)}
+                {l.celulas.map((c, i) => <td key={resultado.documentos[i].id}>{c.length ? c.map((x) => <div key={x.norma}>{x.texto}{x.pagina ? <span className="suave"> · pág. {x.pagina}</span> : null}</div>) : <span className="suave">—</span>}</td>)}
                 <td>{l.diferente ? <strong>Difere</strong> : <span className="suave">Igual</span>}</td>
               </tr>
             ))}</tbody>

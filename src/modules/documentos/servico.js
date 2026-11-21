@@ -33,7 +33,7 @@ const nomeSeguro = (nome) =>
   nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.\-]+/g, '_').slice(-100);
 
 /** Envia para o bucket privado, regista o documento e põe-no na fila. Devolve o id do documento. */
-export async function enviarDocumento(ficheiro, utilizadorId, categoriaId = null) {
+export async function enviarDocumento(ficheiro, utilizadorId, categoriaId = null, { tipoDocumento = null, tipoAnalise = 'completa' } = {}) {
   const erro = await validarFicheiro(ficheiro);
   if (erro) throw new ErroUtilizador(erro);
   const hash = await sha256(ficheiro);
@@ -48,6 +48,9 @@ export async function enviarDocumento(ficheiro, utilizadorId, categoriaId = null
     mime_type: ficheiro.type,
     tamanho_bytes: ficheiro.size,
     categoria_id: categoriaId || null,
+    tipo_documento: tipoDocumento && tipoDocumento !== 'auto' ? tipoDocumento : null,
+    tipo_analise: tipoAnalise,
+    classificacao: { origem: tipoDocumento && tipoDocumento !== 'auto' ? 'manual' : 'auto_pendente' },
     enviado_por: utilizadorId,
     hash_sha256: hash,
   }).select('id').single();
@@ -61,9 +64,9 @@ export async function enviarDocumento(ficheiro, utilizadorId, categoriaId = null
 // ---------- Listagem e pesquisa ----------
 function limparBusca(q) { return String(q || '').replace(/[,()%*\\"']/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60); }
 
-export async function listarDocumentos({ q, estado, categoria, de, ate, pagina = 0 }) {
+export async function listarDocumentos({ q, estado, categoria, tipo, de, ate, pagina = 0 }) {
   let query = supabase.from('documentos')
-    .select('id, nome_ficheiro, estado, nif, referencia, data_documento, paginas, criado_em, categorias(nome), profiles(nome)', { count: 'exact' })
+    .select('id, nome_ficheiro, estado, tipo_documento, nif, referencia, data_documento, paginas, criado_em, categorias(nome), profiles(nome)', { count: 'exact' })
     .order('criado_em', { ascending: false })
     .range(pagina * POR_PAGINA, pagina * POR_PAGINA + POR_PAGINA - 1);
 
@@ -76,6 +79,7 @@ export async function listarDocumentos({ q, estado, categoria, de, ate, pagina =
     query = query.or(partes.join(','));
   }
   if (estado) query = query.eq('estado', estado);
+  if (tipo) query = query.eq('tipo_documento', tipo);
   if (categoria === 'sem') query = query.is('categoria_id', null);
   else if (categoria) query = query.eq('categoria_id', categoria);
   if (de) query = query.gte('criado_em', new Date(`${de}T00:00:00`).toISOString());
@@ -169,7 +173,9 @@ export async function reprocessarDocumento(documentoId) {
     supabase.from('validacoes').delete().eq('documento_id', documentoId),
   ];
   for (const p of passos) { const { error } = await p; if (error) throw error; }
-  const { error: eDoc } = await supabase.from('documentos').update({ estado: 'pendente', nif: null, referencia: null, data_documento: null }).eq('id', documentoId);
+  const { data: antes } = await supabase.from('documentos').select('classificacao').eq('id', documentoId).single();
+  const reclassificar = antes?.classificacao?.origem === 'auto' ? { tipo_documento: null } : {}; // tipo escolhido pelo utilizador mantém-se
+  const { error: eDoc } = await supabase.from('documentos').update({ estado: 'pendente', nif: null, referencia: null, data_documento: null, resumo: null, ...reclassificar }).eq('id', documentoId);
   if (eDoc) throw eDoc;
   const { error: eF } = await supabase.from('fila_processamento').insert({ documento_id: documentoId });
   if (eF) throw eF;

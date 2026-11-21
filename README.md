@@ -4,7 +4,7 @@ Plataforma de inteligência documental (OCR, validação, comparação e relató
 
 ## Arrancar
 1. Criar um projecto no Supabase.
-2. SQL Editor: executar `supabase/migrations/001_fundacao.sql`, depois `002_modulo_documentos.sql` e `003_registo_com_aprovacao.sql`.
+2. SQL Editor: executar `supabase/migrations/001_fundacao.sql`, depois `002_modulo_documentos.sql`, `003_registo_com_aprovacao.sql` e `004_analise_adaptativa.sql`.
 3. Authentication > Providers > Email: **ligar** "Allow new users to sign up" e **"Confirm email"**. Em Authentication > Sign In / Providers, palavra-passe com mínimo de 10 caracteres e protecção contra palavras-passe vazadas. Em Authentication > Attack Protection, activar o **CAPTCHA**.
 4. Authentication > URL Configuration: acrescentar o endereço do site (ex.: `http://localhost:5173` e o de produção) em *Redirect URLs*.
 5. Criar o primeiro utilizador em Authentication > Users e promovê-lo a administrador:
@@ -39,3 +39,10 @@ Formatos de NIF assumidos (confirmar com a AGT): 10 dígitos (empresa) e 9 dígi
 - O administrador aprova ou recusa em **Utilizadores > Pedidos de registo** e define o papel.
 - Contas criadas pelo administrador (botão *Criar conta*) ficam activas logo.
 - Palavras-passe: guardadas apenas como hash pelo Supabase Auth. Ligação em HTTPS; dados e ficheiros cifrados em repouso pelo Supabase.
+
+## Análise adaptativa (migração 004)
+- O utilizador escolhe o **tipo de documento** (18 perfis + "Não sei identificar") e o **tipo de análise** (extracção, validação, comparação, resumo, pesquisa, completa) antes de enviar.
+- Código em `src/modules/analise/`: `perfis/` (dados de cada tipo), `motor/` (classificação, extracção, validação, resumo; funções puras), `servico.js` (liga ao Supabase). Para acrescentar um tipo: criar o perfil em `perfis/definicoes.js` e listá-lo em `perfis/index.js`.
+- A classificação automática usa palavras-chave (não é IA generativa); com confiança abaixo de 70 % pede confirmação e só depois analisa.
+- O texto lido fica em `documentos.texto_original` (páginas separadas por `\f`), por isso mudar o tipo refaz a análise sem repetir o OCR.
+- Testes do motor: `node --import ./testes/registar.mjs testes/analise.mjs`.

@@ -1,11 +1,9 @@
 import { supabase } from '@/lib/supabase';
+import { rotuloCampo, rotuloTipo } from '../analise/perfis';
 
 export const ESTADOS = ['pendente', 'em_processamento', 'processado', 'revisao', 'erro'];
 export const ROTULO_ESTADO = {
   pendente: 'Pendente', em_processamento: 'Em processamento', processado: 'Processado', revisao: 'Para revisão', erro: 'Com erro',
-};
-const ROTULO_CAMPO = {
-  nif: 'NIF', nome: 'Nome', data: 'Data', valor: 'Valor', referencia: 'Referência', numero_factura: 'Número de factura',
 };
 const ROTULO_SEVERIDADE = { erro: 'Erro', aviso: 'Aviso', info: 'Informação' };
 const ANALISADOS = ['processado', 'revisao'];
@@ -21,7 +19,7 @@ export const SECCOES = [
   { id: 'dados', titulo: 'Dados extraídos', colunas: [
     { chave: 'documento', titulo: 'Documento', peso: 30 }, { chave: 'referencia', titulo: 'Referência', peso: 16 },
     { chave: 'nif', titulo: 'NIF', peso: 14 }, { chave: 'categoria', titulo: 'Categoria', peso: 16 },
-    { chave: 'campo', titulo: 'Campo', peso: 16 }, { chave: 'valor', titulo: 'Valor extraído', peso: 22 },
+    { chave: 'tipo', titulo: 'Tipo de documento', peso: 18 }, { chave: 'campo', titulo: 'Campo', peso: 16 }, { chave: 'pagina', titulo: 'Pág.', peso: 7 }, { chave: 'valor', titulo: 'Valor extraído', peso: 22 },
     { chave: 'valorOriginal', titulo: 'Valor lido pelo OCR', peso: 22 }, { chave: 'confianca', titulo: 'Confiança (%)', peso: 11 },
     { chave: 'corrigido', titulo: 'Corrigido à mão', peso: 11 },
   ] },
@@ -60,9 +58,9 @@ export function descreverFiltros(f, categorias = []) {
 }
 
 const SELECCAO = [
-  'id, nome_ficheiro, estado, referencia, nif, paginas, criado_em, categoria_id',
+  'id, nome_ficheiro, estado, tipo_documento, referencia, nif, paginas, criado_em, categoria_id',
   'categorias(nome)',
-  'dados_extraidos(campo, valor, valor_original, confianca, corrigido_manual)',
+  'dados_extraidos(campo, valor, valor_original, confianca, corrigido_manual, pagina)',
   'validacoes(tipo, campo, mensagem, severidade, resolvida, criado_em)',
   'fila_processamento(estado, erro_mensagem, tentativas, criado_em)',
 ].join(', ');
@@ -125,7 +123,7 @@ export function construirRelatorio(documentos, meta = {}) {
       if (conf != null) { somaConf += conf; nConf += 1; }
       dados.push({
         documento: d.nome_ficheiro, referencia: d.referencia || '', nif: d.nif || '', categoria,
-        campo: ROTULO_CAMPO[x.campo] || x.campo, valor: x.valor ?? '', valorOriginal: x.valor_original ?? '',
+        campo: rotuloCampo(x.campo), pagina: x.pagina ?? '', tipo: rotuloTipo(d.tipo_documento), valor: x.valor ?? '', valorOriginal: x.valor_original ?? '',
         confianca: conf, corrigido: x.corrigido_manual ? 'Sim' : 'Não',
       });
     }
@@ -138,7 +136,7 @@ export function construirRelatorio(documentos, meta = {}) {
       if (!v.resolvida && v.severidade !== 'info') porResolver += 1;
       if (v.severidade !== 'info') {
         erros.push({
-          documento: d.nome_ficheiro, origem: 'Validação', tipo: v.tipo, campo: v.campo ? (ROTULO_CAMPO[v.campo] || v.campo) : '',
+          documento: d.nome_ficheiro, origem: 'Validação', tipo: v.tipo, campo: v.campo ? rotuloCampo(v.campo) : '',
           mensagem: v.mensagem, severidade: ROTULO_SEVERIDADE[v.severidade] || v.severidade,
           situacao: v.resolvida ? 'Resolvida' : 'Por resolver', data: dataHora(v.criado_em), _ordem: v.severidade === 'erro' ? 0 : 1,
         });

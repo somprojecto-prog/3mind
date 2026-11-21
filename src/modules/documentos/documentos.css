@@ -49,3 +49,21 @@
 
 @media (max-width: 1000px) { .dc-detalhe { grid-template-columns: 1fr; } .dc-filtros { grid-template-columns: 1fr 1fr; } .dc-visor { height: 55vh; } }
 @media (max-width: 560px) { .dc-filtros { grid-template-columns: 1fr; } }
+
+/* ---------- Escolha do tipo de documento e de análise ---------- */
+.an-passos { display: flex; gap: .5rem; flex-wrap: wrap; list-style: none; padding: 0; margin: 0 0 1rem; font-size: .9rem; }
+.an-passos li { padding: .35rem .8rem; border-radius: 999px; background: var(--azul-100); color: var(--azul-900); }
+.an-passos .an-passo-on { background: var(--azul-600); color: #fff; font-weight: 600; }
+.an-passos .an-passo-ok { background: var(--azul-300); }
+.an-pesquisa { display: flex; align-items: center; gap: .5rem; max-width: 380px; margin-bottom: 1rem; border: 1px solid var(--linha); border-radius: 8px; padding: 0 .7rem; }
+.an-pesquisa input { border: 0; outline: 0; flex: 1; padding: .6rem 0; background: transparent; }
+.an-grelha { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: .8rem; margin-bottom: 1rem; }
+.an-cartao { display: flex; flex-direction: column; gap: .35rem; align-items: flex-start; text-align: left; padding: .9rem; border: 1px solid var(--linha); border-radius: 12px; background: #fff; cursor: pointer; color: var(--azul-900); font: inherit; transition: border-color .15s, box-shadow .15s; }
+.an-cartao svg { color: var(--azul-600); }
+.an-cartao span { font-size: .82rem; color: #5b6b80; }
+.an-cartao:hover, .an-cartao:focus-visible { border-color: var(--azul-600); box-shadow: 0 2px 10px rgba(10, 37, 64, .1); outline: none; }
+.an-cartao-on { border-color: var(--azul-600); background: var(--azul-100); }
+.an-etiqueta { display: inline-block; padding: .15rem .55rem; border-radius: 999px; background: var(--azul-100); color: var(--azul-900); font-size: .8rem; margin-right: .4rem; }
+.an-confirmar { border: 1px solid var(--azul-300); background: var(--azul-100); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+.an-mark { background: #fff3a3; padding: 0 .1rem; }
+.an-pagina { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .85rem; background: #f7f9fc; border: 1px solid var(--linha); border-radius: 8px; padding: .8rem; max-height: 420px; overflow: auto; }

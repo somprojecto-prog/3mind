@@ -4,7 +4,9 @@ import { ArrowLeft, ExternalLink, RefreshCw, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { pode } from '@/lib/permissoes';
 import { aviso, BarraProgresso, EstadoErro, Esqueleto, mensagemErro, Roda } from '@/shared/notificacoes';
-import { ROTULO_CAMPO, CAMPOS } from '../ocr/extracao';
+import { ANALISES, PERFIS, obterAnalise, obterPerfil, rotuloCampo, rotuloTipo } from '../analise/perfis';
+import { confirmarTipo, pesquisarNoTexto } from '../analise/servico';
+import { dividirPaginas } from '../analise/motor/texto';
 import { executarValidacao, resolverValidacao } from '../validacao/servico';
 import { acordar, repetirTrabalho } from '../fila/processador';
 import { Confianca, EstadoTag } from './Componentes';
@@ -14,7 +16,7 @@ import {
   descarregarFicheiro, eliminarDocumento, listarCategorias, reprocessarDocumento,
 } from './servico';
 
-function Visualizador({ documento }) {
+function Visualizador({ documento, pagina }) {
   const [url, setUrl] = useState(null);
   const [falha, setFalha] = useState(false);
   useEffect(() => {
@@ -32,19 +34,19 @@ function Visualizador({ documento }) {
   return (
     <>
       {documento.mime_type === 'application/pdf'
-        ? <iframe className="dc-visor" src={url} title={`Visualização de ${documento.nome_ficheiro}`} />
+        ? <iframe key={pagina || 0} className="dc-visor" src={pagina ? `${url}#page=${pagina}` : url} title={`Visualização de ${documento.nome_ficheiro}`} />
         : <img className="dc-imagem" src={url} alt={`Imagem de ${documento.nome_ficheiro}`} />}
       <p><a className="dc-ligacao" href={url} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} aria-hidden="true" /> Abrir numa janela nova</a></p>
     </>
   );
 }
 
-function LinhaDado({ linha, editavel, aoGuardar, aoDescartar }) {
+function LinhaDado({ linha, editavel, aoGuardar, aoDescartar, aoLocalizar }) {
   const [valor, setValor] = useState(linha.valor ?? '');
   useEffect(() => setValor(linha.valor ?? ''), [linha.valor]);
   const descartado = linha.corrigido_manual && !(linha.valor || '').trim();
   const alterado = valor !== (linha.valor ?? '');
-  const rotulo = ROTULO_CAMPO[linha.campo] || linha.campo;
+  const rotulo = rotuloCampo(linha.campo);
   return (
     <tr className={descartado ? 'dc-descartado' : ''}>
       <td>{rotulo}</td>
@@ -55,6 +57,7 @@ function LinhaDado({ linha, editavel, aoGuardar, aoDescartar }) {
           onKeyDown={(e) => { if (e.key === 'Enter' && alterado) aoGuardar(linha, valor); }} />
       </td>
       <td><Confianca valor={linha.confianca} /></td>
+      <td>{linha.pagina ? <button type="button" className="btn btn-suave" onClick={() => aoLocalizar(linha)} title="Ver a origem no documento">Pág. {linha.pagina}</button> : '—'}</td>
       <td>{descartado ? 'Descartado' : linha.corrigido_manual ? 'Corrigido' : 'Lido'}</td>
       {editavel && (
         <td><div className="dc-accoes">
@@ -66,16 +69,17 @@ function LinhaDado({ linha, editavel, aoGuardar, aoDescartar }) {
   );
 }
 
-function SeparadorDados({ dados, editavel, aoGuardar, aoDescartar, aoAcrescentar }) {
-  const [campo, setCampo] = useState('nif');
+function SeparadorDados({ dados, editavel, aoGuardar, aoDescartar, aoAcrescentar, aoLocalizar, perfilDoc }) {
+  const opcoes = perfilDoc.campos.filter((c) => !['itens', 'movimentos', 'clausulas'].includes(c.tipo));
+  const [campo, setCampo] = useState(opcoes[0]?.chave || 'nif');
   const [valor, setValor] = useState('');
   return (
     <>
       {dados.length === 0 ? <p className="suave">Ainda não há dados lidos neste documento.</p> : (
         <div className="tabela-rolar">
           <table>
-            <thead><tr><th>Campo</th><th>Valor</th><th>Confiança</th><th>Origem</th>{editavel && <th></th>}</tr></thead>
-            <tbody>{dados.map((l) => <LinhaDado key={l.id} linha={l} editavel={editavel} aoGuardar={aoGuardar} aoDescartar={aoDescartar} />)}</tbody>
+            <thead><tr><th>Campo</th><th>Valor</th><th>Confiança</th><th>Página</th><th>Origem</th>{editavel && <th></th>}</tr></thead>
+            <tbody>{dados.map((l) => <LinhaDado key={l.id} linha={l} editavel={editavel} aoGuardar={aoGuardar} aoDescartar={aoDescartar} aoLocalizar={aoLocalizar} />)}</tbody>
           </table>
         </div>
       )}
@@ -83,7 +87,7 @@ function SeparadorDados({ dados, editavel, aoGuardar, aoDescartar, aoAcrescentar
       {editavel && (
         <form className="dc-novo" onSubmit={(e) => { e.preventDefault(); if (valor.trim()) { aoAcrescentar(campo, valor); setValor(''); } }}>
           <label>Campo
-            <select value={campo} onChange={(e) => setCampo(e.target.value)}>{CAMPOS.map((c) => <option key={c} value={c}>{ROTULO_CAMPO[c]}</option>)}</select>
+            <select value={campo} onChange={(e) => setCampo(e.target.value)}>{opcoes.map((c) => <option key={c.chave} value={c.chave}>{c.rotulo}</option>)}</select>
           </label>
           <label>Valor<input value={valor} onChange={(e) => setValor(e.target.value)} /></label>
           <button className="btn btn-suave">Acrescentar</button>
@@ -109,6 +113,82 @@ function SeparadorValidacoes({ validacoes, podeResolver, podeValidar, aoResolver
       {abertas.length === 0 ? <p className="sucesso">Sem problemas por resolver.</p> : <ul className="dc-lista">{abertas.map(item)}</ul>}
       {fechadas.length > 0 && <details style={{ marginTop: '1rem' }}><summary>Resolvidas ({fechadas.length})</summary><ul className="dc-lista" style={{ marginTop: '.6rem' }}>{fechadas.map(item)}</ul></details>}
     </>
+  );
+}
+
+const TIPOS_CONTAGEM = [
+  ['campo_vazio', 'Campos incompletos'], ['aritmetica', 'Erros aritméticos'], ['divergencia', 'Divergências'], ['duplicado', 'Duplicados'], ['alerta', 'Alertas'],
+];
+
+function SeparadorResultado({ d, perfilDoc, aoLocalizar }) {
+  const { documento, dados, validacoes } = d;
+  const abertas = validacoes.filter((v) => !v.resolvida);
+  const ocr = documento.classificacao?.ocr?.media;
+  const obrigatorios = perfilDoc.campos.filter((c) => c.obrigatorio);
+  const validados = obrigatorios.filter((c) => dados.some((x) => x.campo === c.chave && (x.valor || '').trim()) && !abertas.some((v) => v.campo === c.chave && v.severidade !== 'info'));
+  const revisao = documento.estado === 'revisao' || abertas.some((v) => v.severidade !== 'info') || (ocr != null && ocr < 70);
+  const principais = dados.filter((x) => !['item', 'movimento', 'clausula'].includes(x.campo) && (x.valor || '').trim());
+  return (
+    <>
+      <p><span className="an-etiqueta">{rotuloTipo(documento.tipo_documento)}</span><span className="an-etiqueta">{obterAnalise(documento.tipo_analise).rotulo}</span></p>
+      <h3>Resumo</h3>
+      {documento.resumo ? <p>{documento.resumo}</p> : <p className="suave">{['resumo', 'completa'].includes(documento.tipo_analise) ? 'Ainda sem resumo.' : 'O tipo de análise escolhido não inclui resumo.'}</p>}
+      {documento.resumo && <p className="dc-fino">Resumo automático escrito por regras a partir dos dados lidos; confirme contra o documento.</p>}
+      <dl className="dc-meta">
+        <div><dt>Confiança do OCR</dt><dd>{ocr != null ? `${Math.round(ocr)}%` : '—'}</dd></div>
+        <div><dt>Campos obrigatórios validados</dt><dd>{validados.length} de {obrigatorios.length}</dd></div>
+        {TIPOS_CONTAGEM.map(([t, r]) => <div key={t}><dt>{r}</dt><dd>{abertas.filter((v) => v.tipo === t).length}</dd></div>)}
+        <div><dt>Revisão humana</dt><dd>{revisao ? 'Necessária' : 'Não detectada'}</dd></div>
+      </dl>
+      <h3>Dados principais</h3>
+      {principais.length === 0 ? <p className="suave">Sem dados lidos.</p> : (
+        <div className="tabela-rolar"><table><thead><tr><th>Campo</th><th>Valor</th><th>Página</th></tr></thead>
+          <tbody>{principais.map((x) => <tr key={x.id}><td>{rotuloCampo(x.campo)}</td><td>{x.valor}</td><td>{x.pagina ? <button type="button" className="btn btn-suave" onClick={() => aoLocalizar(x)}>Pág. {x.pagina}</button> : '—'}</td></tr>)}</tbody></table></div>
+      )}
+      {['comparacao', 'completa'].includes(documento.tipo_analise) && <p style={{ marginTop: '1rem' }}><Link className="btn btn-suave" to={`/comparacao?docs=${documento.id}`}>Comparar com outros documentos</Link></p>}
+    </>
+  );
+}
+
+function SeparadorOriginal({ documento, destaque }) {
+  const paginas = dividirPaginas(documento.texto_original);
+  const [q, setQ] = useState('');
+  const termo = q.trim().length >= 2 ? q.trim() : destaque?.valor || '';
+  const resultados = pesquisarNoTexto(documento.texto_original, q);
+  const marcar = (t) => {
+    if (!termo) return t;
+    const partes = t.split(new RegExp(`(${termo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'i'));
+    return partes.map((p, i) => (i % 2 ? <mark key={i} className="an-mark">{p}</mark> : p));
+  };
+  if (!paginas.length) return <p className="suave">O texto original ainda não está disponível.</p>;
+  return (
+    <>
+      <label style={{ maxWidth: 360, marginBottom: '.8rem' }}>Pesquisar no documento<input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Palavra, número ou referência" /></label>
+      {q.trim().length >= 2 && <p className="dc-fino">{resultados.length} resultado(s){resultados.length ? ': ' + [...new Set(resultados.map((r) => `pág. ${r.pagina}`))].join(', ') : ''}.</p>}
+      {paginas.map((p, i) => (
+        <details key={i} open={destaque?.pagina === i + 1 || paginas.length === 1 || (q.trim().length >= 2 && resultados.some((r) => r.pagina === i + 1))} style={{ marginBottom: '.6rem' }}>
+          <summary>Página {i + 1}</summary>
+          <div className="an-pagina">{marcar(p)}</div>
+        </details>
+      ))}
+    </>
+  );
+}
+
+function PainelTipo({ documento, aoConfirmar, aA }) {
+  const [tipo, setTipo] = useState(documento.tipo_documento || 'outros');
+  const cl = documento.classificacao || {};
+  return (
+    <div className="an-confirmar" role="alert">
+      <strong>{cl.pendente ? 'Confirme o tipo de documento' : 'Confirmar o tipo de documento'}</strong>
+      <p style={{ margin: '.4rem 0' }}>{cl.pendente
+        ? `O 3MIND acha que é "${rotuloTipo(cl.tipo)}", mas só com ${cl.confianca ?? 0}% de confiança. A análise só continua depois de confirmar.`
+        : `Escolheu "${rotuloTipo(documento.tipo_documento)}", mas o conteúdo parece ser "${rotuloTipo(cl.divergente?.tipo)}" (${cl.divergente?.confianca}%).`}</p>
+      <div className="dc-accoes">
+        <select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Tipo de documento">{PERFIS.map((p) => <option key={p.id} value={p.id}>{p.rotulo}</option>)}</select>
+        <button className="btn btn-primario" disabled={aA} onClick={() => aoConfirmar(tipo)}>{aA ? <Roda /> : null} Confirmar e analisar</button>
+      </div>
+    </div>
   );
 }
 
@@ -152,10 +232,12 @@ export default function Detalhe() {
   const { perfil } = useAuth();
   const [d, setD] = useState(null);
   const [erro, setErro] = useState(null);
-  const [aba, setAba] = useState('dados');
+  const [aba, setAba] = useState('resultado');
   const [categorias, setCategorias] = useState([]);
   const [auditoria, setAuditoria] = useState(null);
   const [aValidar, setAValidar] = useState(false);
+  const [origem, setOrigem] = useState(null);
+  const [aConfirmar, setAConfirmar] = useState(false);
 
   const carregar = useCallback(async () => {
     try { setD(await carregarDetalhe(id)); setErro(null); } catch (e) { setErro(e); }
@@ -184,6 +266,8 @@ export default function Detalhe() {
   if (!d) return <Esqueleto linhas={8} altura={22} />;
 
   const { documento, dados, validacoes, fila } = d;
+  const perfilDoc = obterPerfil(documento.tipo_documento);
+  const precisaTipo = Boolean(documento.classificacao?.pendente || documento.classificacao?.divergente);
   const editavel = pode(perfil.papel, 'documentos.editar') && !emCurso;
   const abertas = validacoes.filter((v) => !v.resolvida).length;
 
@@ -208,7 +292,7 @@ export default function Detalhe() {
   };
   const validarDeNovo = async () => {
     setAValidar(true);
-    try { await executarValidacao(id); await carregar(); aviso.sucesso('Validação actualizada.'); } catch (e) { aviso.erro(mensagemErro(e, 'validar')); }
+    try { await executarValidacao(id, { forcar: true }); await carregar(); aviso.sucesso('Validação actualizada.'); } catch (e) { aviso.erro(mensagemErro(e, 'validar')); }
     setAValidar(false);
   };
   const mudarCategoria = async (e) => {
@@ -221,6 +305,12 @@ export default function Detalhe() {
     if (!window.confirm('Reprocessar apaga os dados lidos e as correcções feitas à mão neste documento, e lê o ficheiro outra vez. Continuar?')) return;
     try { await reprocessarDocumento(id); await carregar(); aviso.info('O documento voltou à fila.'); acordar({ todos: documento.enviado_por !== perfil.id }); } catch (e) { aviso.erro(mensagemErro(e, 'reprocessar')); }
   };
+  const localizar = (linha) => { setOrigem(linha); setAba('original'); };
+  const mudarTipo = async (tipo) => {
+    setAConfirmar(true);
+    try { await confirmarTipo(id, tipo); await carregar(); aviso.sucesso('Tipo confirmado. Análise actualizada.'); } catch (e) { aviso.erro(mensagemErro(e, 'analisar com o tipo escolhido')); }
+    setAConfirmar(false);
+  };
   const eliminar = async () => {
     if (!window.confirm(`Eliminar "${documento.nome_ficheiro}" de forma definitiva? Esta acção não pode ser desfeita.`)) return;
     try { await eliminarDocumento(documento); aviso.sucesso('Documento eliminado.'); navegar('/documentos'); } catch (e) { aviso.erro(mensagemErro(e, 'eliminar o documento')); }
@@ -230,7 +320,7 @@ export default function Detalhe() {
     <>
       <p><Link className="dc-ligacao" to="/documentos"><ArrowLeft size={14} aria-hidden="true" /> Voltar aos documentos</Link></p>
       <div className="dc-cabeca">
-        <div><h2 style={{ marginBottom: '.3rem' }}>{documento.nome_ficheiro}</h2><EstadoTag estado={documento.estado} /></div>
+        <div><h2 style={{ marginBottom: '.3rem' }}>{documento.nome_ficheiro}</h2><EstadoTag estado={documento.estado} /> <span className="an-etiqueta">{rotuloTipo(documento.tipo_documento)}</span><span className="an-etiqueta">{obterAnalise(documento.tipo_analise).rotulo}</span></div>
         <div className="dc-accoes">
           {pode(perfil.papel, 'fila.gerir') && <button className="btn btn-suave" onClick={reprocessar} disabled={emCurso}>Reprocessar</button>}
           {pode(perfil.papel, 'admin.utilizadores') && <button className="btn btn-suave dc-perigo" onClick={eliminar}><Trash2 size={15} aria-hidden="true" />Eliminar</button>}
@@ -238,6 +328,8 @@ export default function Detalhe() {
       </div>
 
       {emCurso && <p className="sucesso" role="status"><Roda /> {documento.estado === 'pendente' ? 'À espera de ser lido.' : 'A ler o documento…'} Esta página actualiza sozinha.</p>}
+
+      {precisaTipo && pode(perfil.papel, 'documentos.editar') && <PainelTipo documento={documento} aoConfirmar={mudarTipo} aA={aConfirmar} />}
 
       <section className="cartao">
         <dl className="dc-meta">
@@ -256,14 +348,16 @@ export default function Detalhe() {
       </section>
 
       <div className="dc-detalhe">
-        <section className="cartao"><Visualizador documento={documento} /></section>
+        <section className="cartao"><Visualizador documento={documento} pagina={origem?.pagina} /></section>
         <section className="cartao">
           <div className="dc-abas" role="tablist">
-            {[['dados', 'Dados extraídos'], ['validacoes', `Validações${abertas ? ` (${abertas})` : ''}`], ['historico', 'Histórico']].map(([k, r]) => (
+            {[['resultado', 'Resultado'], ['dados', 'Dados extraídos'], ['validacoes', `Validações${abertas ? ` (${abertas})` : ''}`], ['original', 'Texto original'], ['historico', 'Histórico']].map(([k, r]) => (
               <button key={k} role="tab" aria-selected={aba === k} onClick={() => setAba(k)}>{r}</button>
             ))}
           </div>
-          {aba === 'dados' && <SeparadorDados dados={dados} editavel={editavel} aoGuardar={guardar} aoDescartar={descartar} aoAcrescentar={acrescentar} />}
+          {aba === 'resultado' && <SeparadorResultado d={d} perfilDoc={perfilDoc} aoLocalizar={localizar} />}
+          {aba === 'dados' && <SeparadorDados dados={dados} editavel={editavel} aoGuardar={guardar} aoDescartar={descartar} aoAcrescentar={acrescentar} aoLocalizar={localizar} perfilDoc={perfilDoc} />}
+          {aba === 'original' && <SeparadorOriginal documento={documento} destaque={origem} />}
           {aba === 'validacoes' && <SeparadorValidacoes validacoes={validacoes} podeResolver={editavel && pode(perfil.papel, 'validacao.resolver')} podeValidar={editavel} aoResolver={resolver} aoValidar={validarDeNovo} aValidar={aValidar} />}
           {aba === 'historico' && <SeparadorHistorico fila={fila} auditoria={verAuditoria ? auditoria : null} podeRepetir={pode(perfil.papel, 'documentos.editar')} aoRepetir={repetir} />}
         </section>

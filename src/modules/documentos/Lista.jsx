@@ -7,9 +7,10 @@ import { pode } from '@/lib/permissoes';
 import { aviso, EstadoErro, EstadoVazio, Esqueleto, mensagemErro } from '@/shared/notificacoes';
 import { EstadoTag } from './Componentes';
 import { ESTADOS, ROTULO_ESTADO, formatarData, formatarDataHora } from './estados';
+import { PERFIS, rotuloTipo } from '../analise/perfis';
 import { POR_PAGINA, apagarCategoria, criarCategoria, listarCategorias, listarDocumentos } from './servico';
 
-const FILTROS_VAZIOS = { q: '', estado: '', categoria: '', de: '', ate: '' };
+const FILTROS_VAZIOS = { q: '', estado: '', categoria: '', tipo: '', de: '', ate: '' };
 
 function GerirCategorias({ categorias, aoMudar }) {
   const [nome, setNome] = useState('');
@@ -78,7 +79,7 @@ export default function Lista() {
       .finally(() => { if (!cancelado) setACarregar(false); });
     return () => { cancelado = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busca, filtros.estado, filtros.categoria, filtros.de, filtros.ate, pagina, versao]);
+  }, [busca, filtros.estado, filtros.categoria, filtros.tipo, filtros.de, filtros.ate, pagina, versao]);
 
   const mudar = (campo) => (e) => { setPagina(0); setFiltros((f) => ({ ...f, [campo]: e.target.value })); };
   const paginas = Math.max(1, Math.ceil((dados?.total ?? 0) / POR_PAGINA));
@@ -103,6 +104,12 @@ export default function Lista() {
               {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
           </label>
+          <label>Tipo de documento
+            <select value={filtros.tipo} onChange={mudar('tipo')}>
+              <option value="">Todos</option>
+              {PERFIS.map((p) => <option key={p.id} value={p.id}>{p.rotulo}</option>)}
+            </select>
+          </label>
           <label>Enviado desde<input type="date" value={filtros.de} onChange={mudar('de')} /></label>
           <label>Até<input type="date" value={filtros.ate} onChange={mudar('ate')} /></label>
         </div>
@@ -115,11 +122,12 @@ export default function Lista() {
           ) : (
             <div className={`tabela-rolar ${aCarregar ? 'dc-opaco' : ''}`}>
               <table>
-                <thead><tr><th>Documento</th><th>Categoria</th><th>NIF</th><th>Referência</th><th>Data</th><th>Estado</th>{mostraAutor && <th>Enviado por</th>}<th>Enviado em</th></tr></thead>
+                <thead><tr><th>Documento</th><th>Tipo</th><th>Categoria</th><th>NIF</th><th>Referência</th><th>Data</th><th>Estado</th>{mostraAutor && <th>Enviado por</th>}<th>Enviado em</th></tr></thead>
                 <tbody>
                   {dados.linhas.map((d) => (
                     <tr key={d.id}>
                       <td><Link className="dc-ligacao" to={`/documentos/${d.id}`}>{d.nome_ficheiro}</Link></td>
+                      <td>{d.tipo_documento ? rotuloTipo(d.tipo_documento) : '—'}</td>
                       <td>{d.categorias?.nome || '—'}</td>
                       <td>{d.nif || '—'}</td>
                       <td>{d.referencia || '—'}</td>

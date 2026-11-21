@@ -1,8 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { ErroLeitura } from '../ocr/erros';
-import { extrairCampos } from '../ocr/extracao';
-import { guardarExtracao } from '../documentos/servico';
-import { executarValidacao } from '../validacao/servico';
+import { analisarDocumento, gravarLeitura } from '../analise/servico';
 
 // Processador da fila: corre no navegador do utilizador que enviou os documentos (OCR no cliente).
 // Trabalha um documento de cada vez, grava o progresso e um ponto de retoma após cada página.
@@ -108,8 +106,8 @@ async function processar(item) {
       aoCheckpoint: (cp) => progresso(fraccao, cp),
     });
 
-    await guardarExtracao(docId, extrairCampos(leitura.texto, leitura.confianca), { paginas: leitura.paginas });
-    await executarValidacao(docId);
+    await gravarLeitura(docId, leitura);
+    await analisarDocumento(docId);
     await relatar({ estado: 'concluido', progresso: 100, concluido_em: new Date().toISOString(), checkpoint: null, erro_mensagem: null });
     avisar({ tipo: 'fim', documentoId: docId });
   } catch (e) {

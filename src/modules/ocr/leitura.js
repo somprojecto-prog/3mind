@@ -64,5 +64,5 @@ export async function lerDocumento(blob, mime, { aoProgresso = () => {}, checkpo
   }
 
   const media = confiancas.length ? confiancas.reduce((a, b) => a + b, 0) / confiancas.length : 0;
-  return { paginas: total, texto: textos.join('\n\n'), confianca: media };
+  return { paginas: total, texto: textos.join('\n\n'), confianca: media, paginasTexto: textos, confiancasPaginas: confiancas };
 }
