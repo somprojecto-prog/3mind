@@ -40,7 +40,7 @@ export async function blobPDF(relatorio, { descricao, geradoPor, geradoEm }) {
   let y = 42;
   if (relatorio.meta.truncado) {
     doc.setTextColor(179, 38, 30);
-    doc.text(limpar(`Atenção: existem ${relatorio.meta.total} documentos nestes filtros; foram incluídos os ${relatorio.meta.limite} mais recentes.`), margem, y);
+    doc.text(limpar(`ATENÇÃO - relatório incompleto: existem ${relatorio.meta.total} documentos nestes filtros, mas só ${relatorio.meta.incluidos} estão incluídos.`), margem, y);
     y += 5;
   }
 

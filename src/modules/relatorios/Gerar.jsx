@@ -85,16 +85,16 @@ export default function Gerar() {
       if (formato === 'csv') {
         const sec = SECCOES.find((s) => s.id === aba);
         blob = blobCSV(sec.colunas, relatorio.seccoes[sec.id]);
-        nome = nomeFicheiro('csv', sec.id, geradoEm);
+        nome = nomeFicheiro('csv', `${sec.id}${relatorio.meta.truncado ? '-incompleto' : ''}`, geradoEm);
         seccao = sec.titulo;
       } else if (formato === 'xlsx') {
         const { blobXLSX } = await import('./exportar/xlsx');
         blob = await blobXLSX(relatorio, contexto);
-        nome = nomeFicheiro('xlsx', '', geradoEm);
+        nome = nomeFicheiro('xlsx', relatorio.meta.truncado ? 'incompleto' : '', geradoEm);
       } else {
         const { blobPDF } = await import('./exportar/pdf');
         blob = await blobPDF(relatorio, contexto);
-        nome = nomeFicheiro('pdf', '', geradoEm);
+        nome = nomeFicheiro('pdf', relatorio.meta.truncado ? 'incompleto' : '', geradoEm);
       }
       baixar(blob, nome);
       aviso.sucesso(`Relatório ${formato.toUpperCase()} gerado: ${nome}`);
@@ -115,8 +115,8 @@ export default function Gerar() {
     <>
       <form className="cartao" onSubmit={aplicar}>
         <div className="grelha-form">
-          <label>Data inicial<input type="date" value={filtros.inicio} onChange={mudar('inicio')} required /></label>
-          <label>Data final<input type="date" value={filtros.fim} onChange={mudar('fim')} required /></label>
+          <label>Enviados desde<input type="date" value={filtros.inicio} onChange={mudar('inicio')} required /></label>
+          <label>Enviados até<input type="date" value={filtros.fim} onChange={mudar('fim')} required /></label>
           <label>Estado
             <select value={filtros.estado} onChange={mudar('estado')}>
               <option value="">Todos</option>
@@ -135,6 +135,7 @@ export default function Gerar() {
           <button type="submit" className="btn btn-primario" disabled={aGerar}>{aGerar && <Roda />}Aplicar filtros</button>
           <button type="button" className="btn btn-suave" onClick={repor} disabled={aGerar}><RotateCcw size={16} aria-hidden="true" />Repor filtros</button>
         </div>
+        <p className="suave rel-nota">O período é a data em que os documentos foram enviados para o 3MIND, não a data escrita no documento.</p>
         {perfil.papel === 'operador' && <p className="suave rel-nota">O relatório inclui apenas os documentos que enviou.</p>}
       </form>
 
@@ -147,8 +148,8 @@ export default function Gerar() {
       {relatorio && (
         <section className={`cartao ${aGerar ? 'rel-a-carregar' : ''}`}>
           {relatorio.meta.truncado && (
-            <p className="erro rel-aviso">
-              Existem {numero(relatorio.meta.total)} documentos nestes filtros. Para manter o relatório rápido, foram incluídos os {numero(relatorio.meta.limite)} mais recentes. Reduza o período para ver todos.
+            <p className="erro rel-aviso" role="alert">
+              Relatório incompleto: existem {numero(relatorio.meta.total)} documentos nestes filtros, mas só {numero(relatorio.meta.incluidos)} foram incluídos (o limite é {numero(relatorio.meta.limite)}, dos mais recentes). Todos os números abaixo referem-se só a estes. Reduza o período para ver todos.
             </p>
           )}
           {semDados ? (
@@ -158,8 +159,9 @@ export default function Gerar() {
               <div className="rel-resumo">
                 <div><span>Documentos</span><strong>{numero(relatorio.resumo.total)}</strong></div>
                 <div><span>Páginas analisadas</span><strong>{numero(relatorio.resumo.paginas)}</strong></div>
-                <div><span>Processados</span><strong>{numero(relatorio.resumo.porEstado.processado)}</strong></div>
-                <div><span>Erros encontrados</span><strong>{numero(relatorio.resumo.erros)}</strong></div>
+                <div><span>Lidos (processados + revisão)</span><strong>{numero(relatorio.resumo.lidos)}</strong></div>
+                <div><span>Erros por resolver</span><strong>{numero(relatorio.resumo.errosAbertos)}</strong></div>
+                <div><span>Avisos por resolver</span><strong>{numero(relatorio.resumo.avisosAbertos)}</strong></div>
                 <div><span>Para revisão</span><strong>{numero(relatorio.resumo.paraRevisao)}</strong></div>
               </div>
 

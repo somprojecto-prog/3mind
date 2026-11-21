@@ -15,12 +15,15 @@ export async function blobXLSX(relatorio, { descricao, geradoPor, geradoEm }) {
       [`3MIND · ${sec.titulo}`],
       [`Período: ${descricao.periodo} · Estado: ${descricao.estado} · Categoria: ${descricao.categoria}`],
       [`Gerado em ${geradoEm.toLocaleString('pt-AO')} por ${geradoPor}`],
-      [],
+      relatorio.meta.truncado
+        ? [`ATENÇÃO - relatório incompleto: existem ${relatorio.meta.total} documentos nestes filtros, mas só ${relatorio.meta.incluidos} estão incluídos.`]
+        : [],
     ];
     topo.forEach((l) => ws.addRow(l));
     ws.getRow(1).font = { bold: true, size: 14, color: { argb: 'FF0A2540' } };
     ws.getRow(2).font = { color: { argb: 'FF5B6B80' } };
     ws.getRow(3).font = { color: { argb: 'FF5B6B80' } };
+    if (relatorio.meta.truncado) ws.getRow(4).font = { bold: true, color: { argb: 'FFB3261E' } };
 
     const cabecalho = ws.addRow(sec.colunas.map((c) => c.titulo));
     cabecalho.eachCell((c) => {
