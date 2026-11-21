@@ -28,6 +28,7 @@ export function numeroDeTexto(txt) {
   let t = String(txt).replace(/\s/g, '').replace(/[^\d.,]/g, '');
   if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
   else if ((t.match(/\./g) || []).length > 1) t = t.replace(/\./g, '');
+  else if (/^\d{1,3}\.\d{3}$/.test(t)) t = t.replace('.', ''); // "238.000" = 238 mil (ponto de milhares)
   return t;
 }
 

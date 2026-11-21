@@ -60,6 +60,13 @@ export async function analisarDocumento(documentoId, { tipo, origem } = {}) {
     if (origem !== 'confirmado' && sugestao.tipo !== tipoDoc && sugestao.confianca >= 75 && sugestao.tipo !== 'outros') cl.divergente = { tipo: sugestao.tipo, confianca: sugestao.confianca };
   }
 
+  // Um PDF pode juntar vários documentos (ex.: factura + recibo + extracto). Avisa-se, em vez de misturar tudo num só perfil.
+  delete cl.multiplo;
+  if (paginas.length > 1) {
+    const porPagina = paginas.map((t, i) => ({ pagina: i + 1, ...classificar(t, PERFIS.filter((p) => !p.generico)) })).filter((p) => p.confianca >= 55 && p.tipo !== 'outros');
+    if (new Set(porPagina.map((p) => p.tipo)).size > 1) cl.multiplo = porPagina.map((p) => ({ pagina: p.pagina, tipo: p.tipo, confianca: p.confianca }));
+  }
+
   const perfil = obterPerfil(tipoDoc);
   const analise = obterAnalise(doc.tipo_analise);
   const { error: eL } = await supabase.rpc('limpar_analise', { p_documento: documentoId });

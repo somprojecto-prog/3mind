@@ -5,7 +5,7 @@ import { MONEY, contarMoedas, limitar, limpar, moedaDeTexto, norm, primeiraData,
 const CLASSES = { a: 'aàáâãä', e: 'eéèêë', i: 'iíìîï', o: 'oóòôõö', u: 'uúùûü', c: 'cç' };
 
 /** Rótulo → expressão regular tolerante a acentos e espaços ("Data de emissão", "data de emissao"). */
-function regexRotulo(rotulo) {
+function regexRotulo(rotulo, estrito = false) {
   const chars = [...String(rotulo)];
   const corpo = chars.map((ch, i) => {
     const l = ch.toLowerCase();
@@ -14,13 +14,48 @@ function regexRotulo(rotulo) {
     if (CLASSES[l]) return `[${CLASSES[l]}]`;
     return ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }).join('');
-  return new RegExp(String.raw`(?<![\p{L}\d])${corpo}(?![\p{L}])`, 'giu');
+  return new RegExp(String.raw`(?<![\p{L}\d])${corpo}(?![\p{L}])${estrito ? String.raw`(?=\s*[:=])` : ''}`, 'giu');
+}
+
+// Quem tem o NIF quando a linha é "Cliente: X • NIF 123": o NIF genérico segue o nome que o antecede na linha.
+const NIF_DE = { cliente: 'nif_cliente', pagador: 'nif_pagador', destinatario: 'nif_destinatario', importador: 'nif_importador', titular: 'nif_titular', parte_a: 'nif_parte_a', parte_b: 'nif_parte_b', remetente: 'nif_remetente', fornecedor: 'nif_fornecedor', emitente: 'nif_emitente', beneficiario: 'nif_beneficiario' };
+const NIF_GENERICOS = new Set(['nif', 'n.i.f', 'contribuinte']);
+const EMPRESA = /\b(lda|limitada|s\.?\s?a\.?|ltd|unipessoal|sarl)\b\.?/i;
+const IMPOSTOS = /\b(IVA|IRT|IAC|IPU|Imposto Industrial|Imposto de Selo|Imposto de Consumo|Imposto sobre o Rendimento[^.\n•]{0,30})\b/;
+const NUMTOK = /^-?(?:\d{1,3}(?:[. ]\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)$/;
+const TRACO = /^[—–-]$/;
+
+// Linha de extracto: data (com ou sem ano), descrição, [débito] [crédito] saldo. "—" marca coluna vazia.
+function lerMovimento(linha, ano) {
+  const m = /^(?<d>\d{1,2}[/\-.]\d{1,2}(?:[/\-.]\d{2,4})?|\d{4}-\d{2}-\d{2})\s+(?:\d{1,2}[/\-.]\d{1,2}(?:[/\-.]\d{2,4})?\s+)?(?<r>.+)$/.exec(limpar(linha));
+  if (!m) return null;
+  const toks = m.groups.r.split(' ');
+  const fim = [];
+  while (toks.length && fim.length < 3 && (NUMTOK.test(toks[toks.length - 1]) || TRACO.test(toks[toks.length - 1]))) fim.unshift(toks.pop());
+  if (!fim.length || TRACO.test(fim[fim.length - 1])) return null;
+  let colunas = fim;
+  if (fim.length === 3 && !fim.some((t) => TRACO.test(t))) { toks.push(fim[0]); colunas = fim.slice(1); } // 3 números sem "—": o primeiro é da descrição
+  const saldo = Number(numeroDeTexto(colunas[colunas.length - 1].replace('-', '')));
+  const negativo = colunas[colunas.length - 1].startsWith('-') ? -1 : 1;
+  const montantes = colunas.slice(0, -1).filter((t) => NUMTOK.test(t)).map((t) => Number(numeroDeTexto(t)));
+  const desc = toks.join(' ').trim();
+  let data = primeiraData(m.groups.d)?.iso;
+  if (!data) {
+    const p = /^(\d{1,2})[/\-.](\d{1,2})(?:[/\-.](\d{2,4}))?$/.exec(m.groups.d);
+    if (!p) return null;
+    const a = p[3] ? (p[3].length === 2 ? `20${p[3]}` : p[3]) : ano;
+    if (!a) return null;
+    const d = primeiraData(`${p[1]}/${p[2]}/${a}`);
+    data = d?.ok ? d.iso : null;
+  }
+  if (!data || !Number.isFinite(saldo)) return null;
+  return { data, desc, saldo: saldo * negativo, montante: montantes[0] ?? null };
 }
 
 const RESTO_INICIAL = /^[\s:.\-–=]*(?:n[.º°o]{1,2}\s*)?[\s:.\-–=]*/i;
 
 // Linha de item: descrição, quantidade, preço unitário, total.
-const NUM = String.raw`\d{1,3}(?:[. ]\d{3})*,\d{2}|\d+[.,]\d{2}|\d+(?:[.,]\d+)?`;
+const NUM = String.raw`\d{1,3}(?:[. ]\d{3})*,\d{2}|\d{1,3}(?:\.\d{3})+(?![\d,])|\d+[.,]\d{2}(?!\d)|\d+(?:[.,]\d+)?`;
 const ITEM = new RegExp(String.raw`^(?<desc>[^\d\s].{1,70}?)\s+(?<n1>${NUM})\s+(?<n2>${NUM})\s+(?<n3>${NUM})$`, 'i');
 const SIMBOLO_MOEDA = /(?:R\$|US\$|€|\$|\b(?:kz|aoa|usd|eur|brl)\b)/gi;
 const PALAVRAS_TOTAIS = /\b(sub-?total|total|iva|imposto|desconto|saldo|a pagar|troco)\b/i;
@@ -39,15 +74,20 @@ function valorDoTipo(tipo, texto) {
       return m ? limpar(m[1]).toUpperCase() : valorDoTipo('ref', texto);
     }
     case 'periodo': {
+      const r = /\b(\d{1,2})\s*[–\-a]\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})\b/.exec(texto);
+      if (r) { const a = primeiraData(`${r[1]}/${r[3]}/${r[4]}`); const b = primeiraData(`${r[2]}/${r[3]}/${r[4]}`); if (a?.ok && b?.ok) return `${a.iso} a ${b.iso}`; }
       const ds = [...String(texto).matchAll(/\b(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{4}|\d{4}-\d{2}-\d{2})\b/g)].map((m) => primeiraData(m[1])).filter((d) => d?.ok);
       return ds.length >= 2 ? `${ds[0].iso} a ${ds[1].iso}` : ds[0]?.iso ?? null;
     }
     case 'ref': {
-      const m = /([A-Z0-9][A-Z0-9/\-. ]{1,28}[A-Z0-9])/i.exec(texto.trim());
-      return m && /\d/.test(m[1]) ? m[1].toUpperCase().replace(/\s+$/, '') : null;
+      const sem = String(texto).split(/\s[•|·]\s?/)[0];
+      for (const m of sem.matchAll(/((?:[A-Z]{1,4}\s)?[A-Za-z0-9][A-Za-z0-9/\-.]*[A-Za-z0-9])/g)) {
+        if (/\d/.test(m[1]) && m[1].length >= 3 && !/^\d{1,2}[/.]\d{1,2}[/.]\d{2,4}$/.test(m[1])) return m[1].toUpperCase();
+      }
+      return null;
     }
     default: {
-      const t = limpar(texto).replace(/^[:.\-–=\s]+/, '').replace(/[;,\s]+$/, '');
+      const t = limpar(String(texto).split(/\s[•|·]\s?|\s[•|·]$/)[0]).replace(/^[^:]{1,25}:\s*/, '').replace(/^[:.\-–=\s]+/, '').replace(/[;,\s]+$/, '');
       return t.length >= 2 ? t.slice(0, 200) : null;
     }
   }
@@ -67,12 +107,13 @@ export function extrairPorPerfil(perfil, paginas, confiancas = []) {
   };
 
   const regexes = [];
-  for (const c of campos) for (const r of c.rotulos) regexes.push({ campo: c, rotulo: r, re: regexRotulo(r), len: r.length });
+  for (const c of campos) for (const r of c.rotulos) regexes.push({ campo: c, rotulo: r, re: regexRotulo(r, c.estrito), len: r.length });
 
   paginas.forEach((texto, idx) => {
     const pagina = idx + 1;
     const base = Number(confiancas[idx] ?? 80) || 0;
     const linhas = String(texto).split(/\n/);
+    const anoDoc = /\b(20\d{2})\b/.exec(paginas.join('\n'))?.[1];
     linhas.forEach((linha, i) => {
       // 1) encontrar todos os rótulos da linha; em caso de sobreposição, ganha o mais comprido
       const achados = [];
@@ -84,6 +125,7 @@ export function extrairPorPerfil(perfil, paginas, confiancas = []) {
       const escolhidos = [];
       for (const a of achados) if (!escolhidos.some((e) => a.ini < e.fim && a.fim > e.ini)) escolhidos.push(a);
       escolhidos.sort((a, b) => a.ini - b.ini);
+      let nomeAnterior = null;
 
       // 2) o valor de cada rótulo vai até ao rótulo seguinte (ou ao fim da linha)
       escolhidos.forEach((e, k) => {
@@ -94,6 +136,9 @@ export function extrairPorPerfil(perfil, paginas, confiancas = []) {
           if (seguinte) resto = seguinte;
         }
         const tipo = e.campo.tipo;
+        let chave = e.campo.chave;
+        if (tipo === 'nif' && NIF_GENERICOS.has(norm(e.rotulo)) && nomeAnterior && perfil.campos.some((c) => c.chave === NIF_DE[nomeAnterior])) chave = NIF_DE[nomeAnterior];
+        if (NIF_DE[e.campo.chave]) nomeAnterior = e.campo.chave;
         if (e.campo.bloco && tipo === 'texto') {
           const extra = [];
           for (const l of linhas.slice(i + 1, i + 4)) { if (!limpar(l)) break; extra.push(limpar(l)); }
@@ -103,7 +148,7 @@ export function extrairPorPerfil(perfil, paginas, confiancas = []) {
         if (r == null || r === '') return;
         const valor = typeof r === 'object' ? r.valor : r;
         const fraca = typeof r === 'object' && r.fraca;
-        poe(e.campo.chave, String(valor), base + 5 - (fraca ? base * 0.5 : 0) - (i > 0 && !limpar(linha.slice(e.fim, fimValor)) ? 8 : 0), pagina);
+        poe(chave, String(valor), base + 5 - (fraca ? base * 0.5 : 0) - (i > 0 && !limpar(linha.slice(e.fim, fimValor)) ? 8 : 0), pagina);
       });
 
       // 3) tabelas
@@ -117,12 +162,11 @@ export function extrairPorPerfil(perfil, paginas, confiancas = []) {
         }
       }
       if (perfil.campos.some((c) => c.chave === 'movimento')) {
-        const m = MOVIMENTO.exec(limpar(linha));
-        if (m) {
-          const d = primeiraData(m.groups.d1);
-          const mont = numeroDeTexto(m.groups.mont.replace('-', ''));
-          const saldo = (m.groups.saldo.startsWith('-') ? '-' : '') + numeroDeTexto(m.groups.saldo.replace('-', ''));
-          poe('movimento', `${d?.iso ?? m.groups.d1} | ${limpar(m.groups.desc)} | ${mont} | ${saldo}`, base - 3, pagina);
+        const mv = lerMovimento(linha, anoDoc);
+        if (mv) {
+          if (/saldo\s+(inicial|anterior|transitado)/i.test(mv.desc)) poe('saldo_inicial', String(mv.saldo.toFixed(2)), base - 2, pagina);
+          else if (/saldo\s+(final|actual|atual)/i.test(mv.desc)) poe('saldo_final', String(mv.saldo.toFixed(2)), base - 2, pagina);
+          else if (mv.montante != null) poe('movimento', `${mv.data} | ${mv.desc} | ${mv.montante.toFixed(2)} | ${mv.saldo.toFixed(2)}`, base - 3, pagina);
         }
       }
     });
@@ -141,6 +185,17 @@ export function extrairPorPerfil(perfil, paginas, confiancas = []) {
         if (/^\s*cl[aá]usula\b/i.test(l) && /(rescis|penalid|confidencial|foro|renova|responsabilidade|for[cç]a maior|propriedade intelectual|pagamento)/i.test(l)) poe('clausula', limpar(l).slice(0, 200), (Number(confiancas[idx] ?? 80) || 0) - 5, idx + 1);
       }
     });
+  }
+  // fornecedor/emitente sem rótulo: a primeira linha com "Lda"/"S.A." (cabeçalho do documento)
+  for (const c of perfil.campos.filter((x) => x.deduzir === 'empresa' && !candidatos.has(x.chave))) {
+    for (let i = 0; i < Math.min(2, paginas.length); i += 1) {
+      const l = String(paginas[i]).split('\n').slice(0, 12).find((x) => EMPRESA.test(x) && !/cliente|recebemos|destinat|importador/i.test(x));
+      if (l) { poe(c.chave, valorDoTipo('texto', l.trim()), (Number(confiancas[i] ?? 80) || 0) - 12, i + 1); break; }
+    }
+  }
+  for (const c of perfil.campos.filter((x) => x.deduzir === 'imposto' && !candidatos.has(x.chave))) {
+    const hit = IMPOSTOS.exec(paginas.join('\n'));
+    if (hit) poe(c.chave, hit[1].toUpperCase() === hit[1] ? hit[1] : limpar(hit[1]), (Number(confiancas[0] ?? 80) || 0) - 15, 1);
   }
   // moeda: se o perfil a pede e não houve rótulo, usar a moeda mais frequente
   const todo = paginas.join('\n');

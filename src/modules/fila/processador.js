@@ -112,8 +112,10 @@ async function processar(item) {
     avisar({ tipo: 'fim', documentoId: docId });
   } catch (e) {
     if (e?.interrompido) return; // fica "em processamento"; será retomado mais tarde
+    console.error('[3MIND] falha ao processar o documento', docId, e);
+    const detalhe = String(e?.message || e || '').replace(/\s+/g, ' ').slice(0, 140);
     const mensagem = e instanceof ErroLeitura || e?.message?.startsWith('Não foi possível obter')
-      ? e.message : 'Falha inesperada ao processar. Pode tentar de novo.';
+      ? e.message : `Falha inesperada ao processar. Pode tentar de novo.${detalhe ? ` (detalhe técnico: ${detalhe})` : ''}`;
     await relatar({ estado: 'falhou', erro_mensagem: mensagem });
     await supabase.from('documentos').update({ estado: 'erro' }).eq('id', docId);
     avisar({ tipo: 'erro', documentoId: docId, mensagem });

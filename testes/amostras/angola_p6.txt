@@ -1,0 +1,27 @@
+3MIND • DOCUMENTOS FICTÍCIOS DE TESTE — ANGOLA
+
+
+
+
+                                 6 — FACTURA DE FORNECEDOR
+ Luanda Office Supplies, Lda. (fictícia) • NIF 5000000123 (fictício)
+ Cliente: Kwanza Comércio, Lda. • NIF fictício 5410000000
+ Factura FS-TEST-2026-112 • Data 10/11/2026 • Vencimento 10/12/2026 • Kz
+
+        Artigo                                     Qtd.   Preço unit.      Total
+
+        Resma de papel A4                          20     6.500                    130.000
+
+        Toner                                      4      18.000                    72.000
+
+        Pastas                                     30     1.200                     36.000
+
+ Subtotal: 238.000 Kz
+ IVA de teste (14%): 33.320 Kz
+ Total: 271.320 Kz
+
+
+
+
+SIMULAÇÃO • NÃO OFICIAL • NÃO USAR PARA FINS FISCAIS                                         Página 6
+

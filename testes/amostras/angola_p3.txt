@@ -1,0 +1,26 @@
+3MIND • DOCUMENTOS FICTÍCIOS DE TESTE — ANGOLA
+
+
+
+
+                                            3 — NOTA DE CRÉDITO
+ Angola Tech Serviços, Lda. (fictícia)
+ Nota NC-TEST-2026-003 • 19/11/2026
+ Cliente: Kwanza Comércio, Lda. • NIF fictício 5410000000
+ Factura de origem: FT-TEST-2026-001
+
+       Descrição                                                             Valor (Kz)
+
+       Anulação parcial de serviço                                                        -20.000,00
+
+       IVA associado (14%, teste)                                                          -2.800,00
+
+       Total da nota                                                                      -22.800,00
+
+ Motivo: ajuste após revisão. Valores para testar negativos e referências.
+
+
+
+
+SIMULAÇÃO • NÃO OFICIAL • NÃO USAR PARA FINS FISCAIS                                                   Página 3
+

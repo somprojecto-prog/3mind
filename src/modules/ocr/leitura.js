@@ -6,7 +6,8 @@ import { ESCALA_RENDER, MAX_PAGINAS, MIN_TEXTO_NATIVO } from './config';
 function traduzir(e) {
   if (e?.name === 'PasswordException') return new ErroLeitura('O PDF está protegido por palavra-passe. Retire a protecção e envie de novo.');
   if (e?.name === 'InvalidPDFException') return new ErroLeitura('O ficheiro PDF está danificado ou não é um PDF válido.');
-  return new ErroLeitura('Não foi possível abrir o ficheiro para leitura.');
+  if (e?.name === 'UnexpectedResponseException' || e?.name === 'MissingPDFException') return new ErroLeitura('Não foi possível abrir o ficheiro para leitura.');
+  return e; // erro técnico (ex.: o leitor não carregou): segue com o detalhe real, sem o disfarçar
 }
 
 /**

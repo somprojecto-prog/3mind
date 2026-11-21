@@ -30,6 +30,10 @@ function problemasDeClassificacao(doc) {
     out.push({ tipo: 'classificacao', campo: null, severidade: 'aviso',
       mensagem: `Escolheu "${rotuloTipo(doc.tipo_documento)}", mas o conteúdo parece ser "${rotuloTipo(cl.divergente.tipo)}" (${cl.divergente.confianca}%). Confirme o tipo.` });
   }
+  if (cl.multiplo?.length) {
+    const partes = cl.multiplo.map((m) => `pág. ${m.pagina}: ${rotuloTipo(m.tipo)}`).join('; ');
+    out.push({ tipo: 'classificacao', campo: null, severidade: 'aviso', mensagem: `Este ficheiro parece juntar vários tipos de documento (${partes}). Os dados podem misturar-se; envie cada documento separado.` });
+  }
   const media = cl.ocr?.media;
   if (media != null && media < LIMITE_CONFIANCA) {
     out.push({ tipo: 'baixa_confianca', campo: null, severidade: 'aviso', mensagem: `A leitura (OCR) tem confiança média de ${Math.round(media)}%. Reveja os dados contra o documento.` });

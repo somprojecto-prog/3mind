@@ -1,0 +1,29 @@
+3MIND • DOCUMENTOS FICTÍCIOS DE TESTE — ANGOLA
+
+
+
+
+                                                  1 — FACTURA
+ Angola Tech Serviços, Lda. (fictícia)
+ NIF: 5000000000 (fictício) • Luanda, Angola
+ Factura: FT-TEST-2026-001 • Data: 15/11/2026
+ Cliente: Kwanza Comércio, Lda. (fictícia) • NIF 5410000000 (fictício)
+ Moeda: Kz
+
+        Descrição                                  Qtd.   Preço unit. (Kz)   Total (Kz)
+
+        Configuração de rede                       1      85.000,00                       85.000,00
+
+        Suporte técnico                            2      30.000,00                       60.000,00
+
+        Instalação                                 1      45.000,00                       45.000,00
+
+ Subtotal: 190.000,00 Kz
+ IVA de teste (14%): 26.600,00 Kz
+ Total: 216.600,00 Kz
+
+
+
+
+SIMULAÇÃO • NÃO OFICIAL • NÃO USAR PARA FINS FISCAIS                                                  Página 1
+

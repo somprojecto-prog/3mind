@@ -27,3 +27,9 @@
 ## Notas
 - A classificação é por palavras-chave; não é IA generativa. O resumo é escrito por regras.
 - O 3MIND não confirma pagamentos nem toma decisões fiscais/jurídicas (alerta fixo nos comprovativos e declarações).
+
+## Correcções da v3 (após testes com o PDF "3MIND_testes_documentais_Angola")
+- **Causa provável de TODOS os documentos falharem** (vista na base de dados: `paginas` e `texto_original` vazios em todos os ficheiros, PDF e imagem; o ficheiro descarrega bem e falha ~2 s depois, antes da 1.ª página): o leitor (PDF.js) não carrega no navegador e o erro ficava escondido atrás de "Falha inesperada". Alterações: PDF.js só carrega para PDFs, em versão `legacy` com polyfill de `Promise.withResolvers`; imagens já não dependem dele; a mensagem de falha passa a incluir "(detalhe técnico: …)" e vai para a consola. **Não confirmado**: falta correr no navegador; se continuar a falhar, o detalhe técnico diz porquê. Atenção: o import `pdfjs-dist/legacy/build/pdf.mjs` e `pdf.worker.min.mjs?url` tem de existir na versão instalada (confirmar no `npm run build`).
+- Motor: "238.000" passa a ser 238 mil; NIF segue o nome da mesma linha ("Cliente: X • NIF 5410…" → NIF do cliente); fornecedor/emitente deduzidos do cabeçalho (Lda/S.A.); extractos com colunas Débito/Crédito e datas sem ano; período "01–30/11/2026"; rótulos "Factura de origem", "Referência", "Valor mercadoria", "FOB", "Total da nota"; rótulos ambíguos (Banco, Mercadoria, Imposto) só valem com ":"; tipo de imposto deduzido (IVA, IRT…); campos obrigatórios menos agressivos; classificação confirma só abaixo de 55 % e termos partilhados já contam para todos os perfis.
+- Aviso quando um PDF junta vários tipos de documento (o PDF de teste junta 8). **Falta**: separar automaticamente cada página/documento em registos próprios.
+- Testes: `testes/amostras/angola_p1..p8.txt` + casos 9 e 10 em `testes/analise.mjs`.

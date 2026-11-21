@@ -19,7 +19,7 @@ function contexto(dados) {
 const REGRAS = {
   obrigatorios({ perfil, c, add }) {
     for (const f of perfil.campos.filter((x) => x.obrigatorio)) {
-      if (!c.tem(f.chave)) add('campo_vazio', f.chave, `Campo obrigatório em falta: "${f.rotulo}".`, 'aviso');
+      if (!c.tem(f.chave) && !(f.alternativas || []).some((a) => c.tem(a))) add('campo_vazio', f.chave, `Campo obrigatório em falta: "${f.rotulo}".`, 'aviso');
     }
   },
   formatos({ perfil, c, add }) {

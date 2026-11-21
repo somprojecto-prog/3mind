@@ -1,11 +1,31 @@
-import * as pdfjs from 'pdfjs-dist';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+// O PDF.js só é carregado quando há um PDF (imagens não dependem dele). Usa-se a versão "legacy", que corre em mais
+// navegadores, e acrescenta-se Promise.withResolvers, que o PDF.js 4 exige e navegadores um pouco mais antigos não têm.
+let pdfjsPronto = null;
+function carregarPdfjs() {
+  if (!pdfjsPronto) {
+    pdfjsPronto = (async () => {
+      if (typeof Promise.withResolvers !== 'function') {
+        Promise.withResolvers = function withResolvers() {
+          let resolve; let reject;
+          const promise = new Promise((a, b) => { resolve = a; reject = b; });
+          return { promise, resolve, reject };
+        };
+      }
+      const [pdfjs, worker] = await Promise.all([
+        import('pdfjs-dist/legacy/build/pdf.mjs'),
+        import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
+      ]);
+      pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+      return pdfjs;
+    })().catch((e) => { pdfjsPronto = null; throw e; });
+  }
+  return pdfjsPronto;
+}
 
 const MAX_PIXEIS = 16_000_000;
 
 export async function abrirPdf(blob) {
+  const pdfjs = await carregarPdfjs();
   const dados = new Uint8Array(await blob.arrayBuffer());
   const tarefa = pdfjs.getDocument({ data: dados, isEvalSupported: false, useSystemFonts: true });
   const pdf = await tarefa.promise;

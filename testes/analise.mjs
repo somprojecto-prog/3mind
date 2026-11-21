@@ -112,5 +112,33 @@ ok(valor(rb, 'moeda') === 'BRL', `BR moeda: ${valor(rb, 'moeda')}`);
 ok(rb.filter((x) => x.campo === 'item').length === 2, `BR itens: ${rb.filter((x) => x.campo === 'item').length}`);
 ok(!avaliarPerfil({ perfil: obterPerfil('factura'), dados: rb }).some((x) => x.severidade === 'erro'), 'BR sem erros aritméticos');
 
+// 10) PDF "3MIND_testes_documentais_Angola" (8 documentos fictícios, uma página cada)
+import fs from 'node:fs';
+const pg = (i) => fs.readFileSync(new URL(`./amostras/angola_p${i}.txt`, import.meta.url), 'utf8');
+const caso = (i, tipoEsperado, esperados, semAvisos = true) => {
+  const t = pg(i);
+  const cl = classificar(t, PERFIS.filter((x) => !x.generico));
+  ok(cl.tipo === tipoEsperado && cl.confianca >= 55, `pág ${i}: tipo ${cl.tipo} (${cl.confianca}%), esperado ${tipoEsperado}`);
+  const perfil = obterPerfil(tipoEsperado);
+  const r = extrairPorPerfil(perfil, [t], [98]);
+  for (const [k, v] of Object.entries(esperados)) ok(valor(r, k) === v || (/^\d+(\.\d+)?$/.test(v) && Number(valor(r, k)) === Number(v)), `pág ${i}: ${k} = ${valor(r, k)}, esperado ${v}`);
+  const prob = avaliarPerfil({ perfil, dados: r }).filter((x) => x.severidade !== 'info');
+  if (semAvisos) ok(prob.length === 0, `pág ${i}: sem avisos/erros, mas há: ${prob.map((x) => x.mensagem).join(' || ')}`);
+  return r;
+};
+const r1 = caso(1, 'factura', { numero: 'FT-TEST-2026-001', data: '2026-11-15', nif_fornecedor: '5000000000', nif_cliente: '5410000000', subtotal: '190000.00', imposto: '26600.00', total: '216600.00', moeda: 'AOA' });
+ok(r1.filter((x) => x.campo === 'item').length === 3, 'pág 1: 3 itens');
+caso(2, 'recibo', { numero: 'RC-TEST-2026-008', valor: '216600.00', factura_associada: 'FT-TEST-2026-001', nif_pagador: '5410000000' });
+caso(3, 'nota_credito', { numero: 'NC-TEST-2026-003', factura_original: 'FT-TEST-2026-001', total: '22800.00', imposto: '2800.00', nif_destinatario: '5410000000' });
+caso(4, 'du', { numero: 'ADU-TEST-2026-014', nif_importador: '5410000000', peso_bruto: '180', peso_liquido: '156', valor_factura: '4800000.00', frete: '350000.00', seguro: '48000.00', pais_origem: 'Portugal' });
+const r5 = caso(5, 'extracto_bancario', { saldo_inicial: '1250000.00', periodo: '2026-11-01 a 2026-11-30', nif_titular: '5410000000' });
+ok(r5.filter((x) => x.campo === 'movimento').length === 5, `pág 5: ${r5.filter((x) => x.campo === 'movimento').length} movimentos`);
+const r6 = caso(6, 'factura', { numero: 'FS-TEST-2026-112', subtotal: '238000', imposto: '33320', total: '271320', vencimento: '2026-12-10', nif_fornecedor: '5000000123' });
+ok(r6.filter((x) => x.campo === 'item').length === 3, 'pág 6: 3 itens');
+caso(7, 'declaracao_fiscal', { nif_contribuinte: '5410000000', tipo_imposto: 'IVA', valor_base: '3500000', valor_imposto: '490000', saldo: '440000', periodo_fiscal: 'Outubro de 2026' });
+caso(8, 'du', { numero: 'IMP-TEST-2026-031', valor_aduaneiro: '6732500', valor_factura: '6250000', frete: '420000', seguro: '62500', nif_importador: '5410000000' });
+// 238.000 é 238 mil, não 238
+ok(Number(valor(r6, 'subtotal')) === 238000, 'valores sem decimais com ponto de milhares');
+
 console.log(falhas ? `${falhas} falhas` : 'tudo ok');
 process.exit(falhas ? 1 : 0);

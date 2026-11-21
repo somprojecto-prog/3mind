@@ -1,0 +1,28 @@
+3MIND • DOCUMENTOS FICTÍCIOS DE TESTE — ANGOLA
+
+
+
+
+                              7 — DECLARAÇÃO FISCAL (TESTE)
+ Contribuinte: Kwanza Comércio, Lda. (fictícia) • NIF 5410000000 (fictício)
+ Período: Outubro de 2026 • Valores de teste
+
+       Campo                                                         Valor (Kz)
+
+       Vendas simuladas                                                           3.500.000
+
+       Base tributável de cenário                                                 3.500.000
+
+       IVA de cenário (14%)                                                        490.000
+
+       Abatimentos simulados                                                        50.000
+
+       Saldo de teste                                                              440.000
+
+ Modelo não oficial. Taxas/regras reais dependem do enquadramento.
+
+
+
+
+SIMULAÇÃO • NÃO OFICIAL • NÃO USAR PARA FINS FISCAIS                                          Página 7
+
