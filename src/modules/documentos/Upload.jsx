@@ -119,7 +119,7 @@ export default function Upload() {
           <label className={`dc-zona ${sobre ? 'dc-zona-sobre' : ''}`} onDragOver={(e) => { e.preventDefault(); setSobre(true); }} onDragLeave={() => setSobre(false)} onDrop={aoLargar}>
             <UploadCloud size={32} aria-hidden="true" />
             <strong>{aEnviar ? 'A enviar…' : 'Arraste ficheiros para aqui ou clique para escolher'}</strong>
-            <input ref={entrada} type="file" multiple disabled={aEnviar} accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"
+            <input ref={entrada} type="file" multiple disabled={aEnviar} accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.jfif,.webp"
               onChange={(e) => { enviar(e.target.files); e.target.value = ''; }} />
           </label>
           <p><button className="btn btn-suave" onClick={() => setPasso(2)} disabled={aEnviar}>Voltar</button></p>

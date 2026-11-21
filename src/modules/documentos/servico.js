@@ -15,12 +15,20 @@ const ASSINATURA = {
 };
 
 /** Devolve uma mensagem de erro, ou null se o ficheiro é aceitável. */
+// Alguns sistemas enviam .jfif/.jpe ou ficheiros sem tipo; deduz-se do nome.
+const POR_EXTENSAO = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', jfif: 'image/jpeg', jpe: 'image/jpeg', pjpeg: 'image/jpeg', webp: 'image/webp' };
+export function tipoDe(ficheiro) {
+  if (TIPOS_ACEITES[ficheiro.type]) return ficheiro.type;
+  return POR_EXTENSAO[String(ficheiro.name || '').split('.').pop().toLowerCase()] || ficheiro.type;
+}
+
 export async function validarFicheiro(ficheiro) {
-  if (!TIPOS_ACEITES[ficheiro.type]) return 'Tipo não aceite. Envie PDF, PNG, JPEG ou WebP.';
+  const tipo = tipoDe(ficheiro);
+  if (!TIPOS_ACEITES[tipo]) return 'Tipo não aceite. Envie PDF, PNG, JPEG ou WebP.';
   if (ficheiro.size === 0) return 'O ficheiro está vazio.';
   if (ficheiro.size > TAMANHO_MAXIMO) return `O ficheiro tem ${(ficheiro.size / 1048576).toFixed(1)} MB; o máximo é ${TAMANHO_MAXIMO / 1048576} MB.`;
   const inicio = new Uint8Array(await ficheiro.slice(0, 12).arrayBuffer());
-  if (!ASSINATURA[ficheiro.type](inicio)) return 'O conteúdo do ficheiro não corresponde ao tipo indicado.';
+  if (!ASSINATURA[tipo](inicio)) return 'O conteúdo do ficheiro não corresponde ao tipo indicado.';
   return null;
 }
 
@@ -39,13 +47,13 @@ export async function enviarDocumento(ficheiro, utilizadorId, categoriaId = null
   const hash = await sha256(ficheiro);
   const caminho = `${utilizadorId}/${crypto.randomUUID()}-${nomeSeguro(ficheiro.name)}`;
 
-  const { error: eUp } = await supabase.storage.from('documentos').upload(caminho, ficheiro, { contentType: ficheiro.type, upsert: false });
+  const { error: eUp } = await supabase.storage.from('documentos').upload(caminho, ficheiro, { contentType: tipoDe(ficheiro), upsert: false });
   if (eUp) throw eUp;
 
   const { data: doc, error: eDoc } = await supabase.from('documentos').insert({
     nome_ficheiro: ficheiro.name.slice(0, 200),
     storage_path: caminho,
-    mime_type: ficheiro.type,
+    mime_type: tipoDe(ficheiro),
     tamanho_bytes: ficheiro.size,
     categoria_id: categoriaId || null,
     tipo_documento: tipoDocumento && tipoDocumento !== 'auto' ? tipoDocumento : null,

@@ -15,7 +15,7 @@ export const juntarPaginas = (paginas) => paginas.join(SEPARADOR_PAGINA);
 // ---------- Moeda ----------
 const MOEDAS = [
   [/\b(?:aoa|kz|kzs|kwanzas?)\b/i, 'AOA'], [/(?:\busd\b|us\$|\bd[oó]lares?\b)/i, 'USD'], [/(?:\beur\b|€|\beuros?\b)/i, 'EUR'],
-  [/\bgbp\b|£/i, 'GBP'], [/\bzar\b|\brand\b/i, 'ZAR'], [/\bcny\b|\brmb\b|\byuan\b/i, 'CNY'], [/\bbrl\b/i, 'BRL'],
+  [/\bgbp\b|£/i, 'GBP'], [/\bzar\b|\brand\b/i, 'ZAR'], [/\bcny\b|\brmb\b|\byuan\b/i, 'CNY'], [/R\$|\bbrl\b|\breais\b/i, 'BRL'],
 ];
 export function moedaDeTexto(txt) {
   for (const [re, codigo] of MOEDAS) if (re.test(txt)) return codigo;
@@ -35,7 +35,8 @@ export function contarMoedas(texto) {
 export const MONEY = String.raw`\d{1,3}(?:[. ]\d{3})+,\d{2}|\d+[.,]\d{2}|\d{1,3}(?:[. ]\d{3})+`;
 
 /** Primeiro montante do texto, como string decimal ("1234.50"), ou null. */
-export function primeiroValor(txt) {
+export function primeiroValor(txt0) {
+  const txt = String(txt0).replace(/\d+(?:[.,]\d+)?\s*%/g, ' '); // taxas (14%, 5,0%) não são montantes
   const dec = /(?:^|[^\d.,])(\d{1,3}(?:[. ]\d{3})*,\d{2}|\d+[.,]\d{2})(?!\d)/.exec(String(txt));
   if (dec) return numeroDeTexto(dec[1]);
   const m = new RegExp(`(?:^|[^\\d.,])(${MONEY}|\\d+)(?![\\d])`).exec(String(txt));

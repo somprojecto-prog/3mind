@@ -95,5 +95,22 @@ ok(pp.some((x) => /parcial/i.test(x.mensagem)), `pagamento parcial: ${JSON.strin
 const pc = obterPerfil('comprovativo_imposto');
 ok(avaliarPerfil({ perfil: pc, dados: [] }).some((x) => x.tipo === 'alerta' && /não confirma/.test(x.mensagem)), 'aviso de não confirmação');
 
+// 9) factura em modelo brasileiro ("Fatura", R$, preço antes da quantidade, taxa em %)
+const BR = `Data Fatura nº 2211
+Número do item Descrição Preço Quantidade Valor
+ABC-123 Item 1 R$ 2,99 15 R$ 44,85
+ABC-134 Item 2 R$ 4,00 20 R$ 80,00
+Total de itens: 2 Subtotal R$ 124,85
+Alíquota de imposto sobre vendas: 5,0% Imposto sobre vendas R$ 6,24
+Desconto de depósito recebido R$ 50,00
+Total da fatura R$ 81,09`;
+const rb = extrairPorPerfil(obterPerfil('factura'), [BR], [85]);
+ok(valor(rb, 'numero') === '2211', `BR numero: ${valor(rb, 'numero')}`);
+ok(valor(rb, 'total') === '81.09', `BR total: ${valor(rb, 'total')}`);
+ok(valor(rb, 'imposto') === '6.24', `BR imposto: ${valor(rb, 'imposto')}`);
+ok(valor(rb, 'moeda') === 'BRL', `BR moeda: ${valor(rb, 'moeda')}`);
+ok(rb.filter((x) => x.campo === 'item').length === 2, `BR itens: ${rb.filter((x) => x.campo === 'item').length}`);
+ok(!avaliarPerfil({ perfil: obterPerfil('factura'), dados: rb }).some((x) => x.severidade === 'erro'), 'BR sem erros aritméticos');
+
 console.log(falhas ? `${falhas} falhas` : 'tudo ok');
 process.exit(falhas ? 1 : 0);

@@ -6,8 +6,10 @@ const CLASSES = { a: 'aàáâãä', e: 'eéèêë', i: 'iíìîï', o: 'oóòô�
 
 /** Rótulo → expressão regular tolerante a acentos e espaços ("Data de emissão", "data de emissao"). */
 function regexRotulo(rotulo) {
-  const corpo = [...String(rotulo)].map((ch) => {
+  const chars = [...String(rotulo)];
+  const corpo = chars.map((ch, i) => {
     const l = ch.toLowerCase();
+    if (l === 'c' && chars[i + 1]?.toLowerCase() === 't') return 'c?'; // factura/fatura, objecto/objeto
     if (/\s/.test(ch)) return String.raw`\s+`;
     if (CLASSES[l]) return `[${CLASSES[l]}]`;
     return ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -18,7 +20,9 @@ function regexRotulo(rotulo) {
 const RESTO_INICIAL = /^[\s:.\-–=]*(?:n[.º°o]{1,2}\s*)?[\s:.\-–=]*/i;
 
 // Linha de item: descrição, quantidade, preço unitário, total.
-const ITEM = new RegExp(String.raw`^(?<desc>[^\d\s].{1,70}?)\s+(?<qtd>\d+(?:[.,]\d+)?)\s+(?<preco>${MONEY})\s+(?<total>${MONEY})\s*(?:kz|aoa|usd|eur)?$`, 'i');
+const NUM = String.raw`\d{1,3}(?:[. ]\d{3})*,\d{2}|\d+[.,]\d{2}|\d+(?:[.,]\d+)?`;
+const ITEM = new RegExp(String.raw`^(?<desc>[^\d\s].{1,70}?)\s+(?<n1>${NUM})\s+(?<n2>${NUM})\s+(?<n3>${NUM})$`, 'i');
+const SIMBOLO_MOEDA = /(?:R\$|US\$|€|\$|\b(?:kz|aoa|usd|eur|brl)\b)/gi;
 const PALAVRAS_TOTAIS = /\b(sub-?total|total|iva|imposto|desconto|saldo|a pagar|troco)\b/i;
 // Linha de movimento bancário: data, [data valor], descrição, montante, saldo.
 const MOVIMENTO = new RegExp(String.raw`^(?<d1>\d{1,2}[/\-.]\d{1,2}[/\-.]\d{4}|\d{4}-\d{2}-\d{2})\s+(?:(?:\d{1,2}[/\-.]\d{1,2}[/\-.]\d{4}|\d{4}-\d{2}-\d{2})\s+)?(?<desc>.{0,80}?)\s*(?<mont>-?${MONEY})\s+(?<saldo>-?${MONEY})\s*(?:kz|aoa|usd|eur)?$`, 'i');
@@ -104,10 +108,12 @@ export function extrairPorPerfil(perfil, paginas, confiancas = []) {
 
       // 3) tabelas
       if (perfil.campos.some((c) => c.chave === 'item')) {
-        const m = ITEM.exec(limpar(linha));
+        const m = ITEM.exec(limpar(linha.replace(SIMBOLO_MOEDA, ' ')));
         if (m && !PALAVRAS_TOTAIS.test(m.groups.desc)) {
-          const q = numeroDeTexto(m.groups.qtd); const p = numeroDeTexto(m.groups.preco); const t = numeroDeTexto(m.groups.total);
-          poe('item', `${limpar(m.groups.desc)} | ${q} | ${p} | ${t}`, base - 3, pagina);
+          const [a, b, t] = [m.groups.n1, m.groups.n2, m.groups.n3].map((x) => Number(numeroDeTexto(x)));
+          // quantidade × preço = total, em qualquer das duas ordens ("2 18.500,00" ou "2,99 15")
+          const ordem = Math.abs(a * b - t) <= Math.max(0.05, t * 0.001) || Math.abs(b * a - t) <= 0.05 ? (Number.isInteger(a) || !Number.isInteger(b) ? [a, b] : [b, a]) : [a, b];
+          poe('item', `${limpar(m.groups.desc)} | ${ordem[0]} | ${ordem[1].toFixed(2)} | ${t.toFixed(2)}`, base - 3, pagina);
         }
       }
       if (perfil.campos.some((c) => c.chave === 'movimento')) {
