@@ -212,6 +212,30 @@ export function extrairPorPerfil(perfil, paginas, confiancas = []) {
       }
     }
   }
+  // Rede de segurança para campos obrigatórios sem rótulo reconhecido (OCR com rótulo partido, layout diferente):
+  // NIF → primeiro NIF numa linha com "NIF/contribuinte"; valor → o maior montante numa linha de total. Confiança baixa.
+  const confMedia = confiancas.length ? confiancas.reduce((a, b) => a + b, 0) / confiancas.length : 80;
+  const faltaObrig = (tipo) => perfil.campos.find((c) => c.obrigatorio && c.tipo === tipo && !candidatos.has(c.chave));
+  const fNif = faltaObrig('nif');
+  if (fNif) {
+    paginas.some((t, i) => String(t).split('\n').some((l) => {
+      if (!/n\.?\s?i\.?\s?f|contribuinte/i.test(l)) return false;
+      const n = primeiroNif(l.replace(/^[^\d]*/, ''));
+      if (n && n.length >= 10) { poe(fNif.chave, n, (Number(confiancas[i] ?? confMedia) || 0) - 25, i + 1); return true; }
+      return false;
+    }));
+  }
+  const fValor = faltaObrig('valor');
+  if (fValor) {
+    let melhor = null;
+    paginas.forEach((t, i) => String(t).split('\n').forEach((l) => {
+      if (!/\b(total|valor|montante|import[aâ]ncia)\b/i.test(l) || /%|sub-?total|iva\b|desconto/i.test(l)) return;
+      const v = primeiroValor(l.replace(/^[^\d]*/, ''));
+      if (v != null && Number(v) > 0 && (!melhor || Number(v) > Number(melhor.v))) melhor = { v, i };
+    }));
+    if (melhor) poe(fValor.chave, String(melhor.v), (Number(confiancas[melhor.i] ?? confMedia) || 0) - 25, melhor.i + 1);
+  }
+
   const saida = [];
   for (const c of perfil.campos) {
     const lista = candidatos.get(c.chave);

@@ -5,6 +5,7 @@ import { executarValidacao } from '../validacao/servico';
 import { classificar, LIMITE_CONFIANCA } from './motor/classificar';
 import { extrairPorPerfil } from './motor/campos';
 import { resumir } from './motor/resumir';
+import { pesquisar } from './motor/pesquisa';
 import { dividirPaginas, juntarPaginas } from './motor/texto';
 import { AUTO, PERFIS, obterAnalise, obterPerfil } from './perfis';
 
@@ -47,14 +48,8 @@ export async function analisarDocumento(documentoId, { tipo, origem } = {}) {
   if (!tipoDoc || tipoDoc === AUTO) {
     tipoDoc = sugestao.tipo;
     cl = { ...cl, tipo: sugestao.tipo, confianca: sugestao.confianca, origem: 'auto', alternativas: sugestao.alternativas };
-    if (sugestao.confianca < LIMITE_CONFIANCA) {
-      cl.pendente = true;
-      const { error: e1 } = await supabase.from('documentos').update({ tipo_documento: sugestao.tipo, classificacao: cl, estado: 'revisao' }).eq('id', documentoId);
-      if (e1) throw e1;
-      await executarValidacao(documentoId);
-      registarAuditoria('classificar_documento', 'documentos', documentoId, { tipo: sugestao.tipo, confianca: sugestao.confianca, confirmacao: 'pedida' }).catch(() => {});
-      return { pendente: true, sugestao };
-    }
+    // Pouca confiança: analisa já com o tipo mais provável (mostra resultados) e deixa as outras opções para confirmar.
+    if (sugestao.confianca < LIMITE_CONFIANCA) cl.pendente = true;
   } else {
     cl = { ...cl, tipo: tipoDoc, confianca: origem === 'confirmado' ? 100 : cl.confianca ?? 100, origem: origem || cl.origem || 'manual', alternativas: sugestao.alternativas };
     if (origem !== 'confirmado' && sugestao.tipo !== tipoDoc && sugestao.confianca >= 75 && sugestao.tipo !== 'outros') cl.divergente = { tipo: sugestao.tipo, confianca: sugestao.confianca };
@@ -79,7 +74,7 @@ export async function analisarDocumento(documentoId, { tipo, origem } = {}) {
     const { error: eI } = await supabase.from('dados_extraidos').insert(campos.map((c) => ({ documento_id: documentoId, campo: c.campo, valor: c.valor, valor_original: c.valor, confianca: c.confianca, pagina: c.pagina })));
     if (eI) throw eI;
   }
-  const resumo = analise.etapas.resumir ? resumir(perfil, campos, paginas) : null;
+  const resumo = analise.etapas.resumir ? resumir(perfil, campos, paginas, { multiplo: cl.multiplo }) : null;
   const { error: eD } = await supabase.from('documentos').update({ tipo_documento: tipoDoc, classificacao: cl, resumo }).eq('id', documentoId);
   if (eD) throw eD;
 
@@ -96,11 +91,8 @@ export async function confirmarTipo(documentoId, tipo) {
   return analisarDocumento(documentoId, { tipo, origem: 'confirmado' });
 }
 
-/** Pesquisa simples no texto original (análise "Pesquisa de informações"). */
+/** Pesquisa no texto original (análise "Pesquisa de informações"): exactos primeiro, depois parciais. */
 export function pesquisarNoTexto(textoOriginal, termo) {
-  const t = String(termo || '').trim().toLowerCase();
-  if (t.length < 2) return [];
-  const out = [];
-  dividirPaginas(textoOriginal).forEach((p, i) => p.split('\n').forEach((l) => { if (l.toLowerCase().includes(t)) out.push({ pagina: i + 1, linha: l.trim().slice(0, 200) }); }));
-  return out.slice(0, 100);
+  const r = pesquisar(textoOriginal, termo);
+  return [...r.exactos, ...r.parciais.map((x) => ({ ...x, parcial: true }))].slice(0, 100);
 }

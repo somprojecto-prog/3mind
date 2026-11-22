@@ -3,7 +3,7 @@ import { formatarMontante } from './texto';
 const dataPT = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? iso.split('-').reverse().join('/') : iso);
 
 /** Resumo automático, escrito por regras a partir dos campos lidos (não inventa nada que não esteja nos dados). */
-export function resumir(perfil, dados, paginas = []) {
+export function resumir(perfil, dados, paginas = [], { multiplo } = {}) {
   const act = dados.filter((d) => !(d.corrigido_manual && !String(d.valor ?? '').trim()) && String(d.valor ?? '').trim());
   const v = (k) => act.find((d) => d.campo === k)?.valor;
   const m = (k) => (v(k) ? formatarMontante(v(k), v('moeda')) : null);
@@ -50,5 +50,11 @@ export function resumir(perfil, dados, paginas = []) {
       }
   }
   void n;
+  // Pontos de atenção: o que o tipo exige e não foi lido, e ficheiros que juntam vários documentos.
+  const faltam = (perfil.campos || []).filter((c) => c.obrigatorio && !v(c.chave) && !(c.alternativas || []).some((a) => v(a))).map((c) => c.rotulo);
+  if (faltam.length) frases.push(`Não foi possível ler: ${faltam.join(', ')}.`);
+  const baixa = act.filter((d) => Number(d.confianca) < 60 && !['item', 'movimento', 'clausula'].includes(d.campo)).length;
+  if (baixa) frases.push(`${baixa} valor(es) lido(s) com pouca confiança; confirme-os.`);
+  if (multiplo?.length > 1) frases.push(`O ficheiro parece juntar ${new Set(multiplo.map((m) => m.tipo)).size} tipos de documento em ${multiplo.length} página(s).`);
   return frases.filter(Boolean).join(' ').replace(/\s+,/g, ',').replace(/\s{2,}/g, ' ').trim();
 }

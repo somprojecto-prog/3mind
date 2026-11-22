@@ -7,6 +7,7 @@ import { registarAuditoria } from '@/lib/auditoria';
 import { aviso, EstadoErro, EstadoVazio, Esqueleto, mensagemErro } from '@/shared/notificacoes';
 import { rotuloCampo, tipoCampo } from '../analise/perfis';
 import { normalizarComparacao } from '../analise/motor/campos';
+import { estadoDaLinha } from './comparar';
 import { EstadoTag } from '../documentos/Componentes';
 import { ROTULO_ESTADO, formatarData, formatarDataHora } from '../documentos/estados';
 import { listarDocumentos } from '../documentos/servico';
@@ -24,9 +25,9 @@ async function construir(ids) {
   if (documentos.length < 2) throw new Error('Não foi possível aceder a pelo menos dois dos documentos.');
 
   const linhas = [];
-  const juntar = (rotulo, celulas, chave) => {
-    const conjuntos = celulas.map((c) => c.map((x) => x.norma).sort().join('|'));
-    linhas.push({ chave, rotulo, celulas, diferente: new Set(conjuntos).size > 1 });
+  const juntar = (rotulo, celulas, chave, tipo = 'texto') => {
+    const estado = estadoDaLinha(celulas, tipo);
+    linhas.push({ chave, rotulo, celulas, estado, diferente: estado !== 'igual' });
   };
 
   const ignorados = new Set(['item', 'movimento', 'clausula']);
@@ -41,7 +42,7 @@ async function construir(ids) {
       }
       return [...vistos.values()];
     });
-    if (celulas.some((c) => c.length)) juntar(rotuloCampo(campo), celulas, campo);
+    if (celulas.some((c) => c.length)) juntar(rotuloCampo(campo), celulas, campo, tipoCampo(campo));
   }
   const meta = [
     ['Categoria', (d) => d.categorias?.nome], ['Páginas', (d) => d.paginas], ['Estado', (d) => ROTULO_ESTADO[d.estado]],
@@ -64,6 +65,7 @@ export default function Comparacao() {
   const [resultado, setResultado] = useState(null);
   const [aComparar, setAComparar] = useState(false);
   const [recentes, setRecentes] = useState([]);
+  const [soDiferencas, setSoDiferencas] = useState(false);
 
   const carregarRecentes = useCallback(async () => {
     const { data } = await supabase.from('comparacoes').select('id, documento_ids, criado_em, resultado').eq('criado_por', perfil.id).order('criado_em', { ascending: false }).limit(6);
@@ -96,6 +98,15 @@ export default function Comparacao() {
   }
 
   const nDif = resultado ? resultado.linhas.filter((l) => l.diferente).length : 0;
+  const visiveis = resultado ? resultado.linhas.filter((l) => !soDiferencas || l.diferente) : [];
+  const ROTULO = { igual: 'Igual', difere: 'Difere', falta: 'Falta num documento' };
+  function exportarCsv() {
+    const q = (x) => `"${String(x ?? '').replace(/"/g, '""')}"`;
+    const cab = ['Campo', ...resultado.documentos.map((d) => d.nome_ficheiro), 'Resultado'];
+    const corpo = visiveis.map((l) => [l.rotulo, ...l.celulas.map((c) => c.map((x) => x.texto).join(' / ')), ROTULO[l.estado]]);
+    const blob = new Blob(['\ufeff' + [cab, ...corpo].map((r) => r.map(q).join(';')).join('\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'comparacao-3mind.csv'; a.click(); URL.revokeObjectURL(a.href);
+  }
 
   return (
     <>
@@ -134,14 +145,19 @@ export default function Comparacao() {
       {resultado && (
         <section className="cartao">
           <h2>Resultado</h2>
-          <p className={nDif ? 'erro' : 'sucesso'} role="status">{nDif ? `${nDif} campo(s) com diferenças, destacados abaixo.` : 'Todos os campos comparados coincidem.'}</p>
+          <p className={nDif ? 'erro' : 'sucesso'} role="status">{nDif ? `${nDif} campo(s) com diferenças ou em falta, destacados abaixo.` : 'Todos os campos comparados coincidem.'}</p>
+          <div className="dc-accoes" style={{ marginBottom: '.8rem' }}>
+            <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}><input type="checkbox" checked={soDiferencas} onChange={(e) => setSoDiferencas(e.target.checked)} /> Mostrar só diferenças</label>
+            <button className="btn btn-suave" onClick={exportarCsv}>Exportar tabela (CSV)</button>
+          </div>
+          <p className="dc-fino">Montantes iguais até 2 cêntimos (ou 0,05 %) contam como iguais; nomes comparam-se sem acentos nem maiúsculas.</p>
           <div className="tabela-rolar"><table className="cmp-tabela">
             <thead><tr><th>Campo</th>{resultado.documentos.map((d) => <th key={d.id}>{d.nome_ficheiro}</th>)}<th>Resultado</th></tr></thead>
-            <tbody>{resultado.linhas.map((l) => (
+            <tbody>{visiveis.map((l) => (
               <tr key={l.chave} className={l.diferente ? 'cmp-dif' : ''}>
                 <th scope="row">{l.rotulo}</th>
                 {l.celulas.map((c, i) => <td key={resultado.documentos[i].id}>{c.length ? c.map((x) => <div key={x.norma}>{x.texto}{x.pagina ? <span className="suave"> · pág. {x.pagina}</span> : null}</div>) : <span className="suave">—</span>}</td>)}
-                <td>{l.diferente ? <strong>Difere</strong> : <span className="suave">Igual</span>}</td>
+                <td>{l.diferente ? <strong>{ROTULO[l.estado]}</strong> : <span className="suave">Igual</span>}</td>
               </tr>
             ))}</tbody>
           </table></div>

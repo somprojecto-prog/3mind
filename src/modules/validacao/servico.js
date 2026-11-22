@@ -25,7 +25,7 @@ function problemasDeClassificacao(doc) {
   const out = [];
   if (cl.pendente) {
     out.push({ tipo: 'classificacao', campo: null, severidade: 'aviso',
-      mensagem: `Tipo de documento por confirmar: parece ser "${rotuloTipo(cl.tipo)}" (${cl.confianca ?? 0}% de confiança). Confirme ou escolha o tipo certo para a análise continuar.` });
+      mensagem: `Tipo de documento por confirmar: parece ser "${rotuloTipo(cl.tipo)}" (${cl.confianca ?? 0}% de confiança). A análise foi feita com este tipo; confirme-o ou escolha outra opção.` });
   } else if (cl.divergente) {
     out.push({ tipo: 'classificacao', campo: null, severidade: 'aviso',
       mensagem: `Escolheu "${rotuloTipo(doc.tipo_documento)}", mas o conteúdo parece ser "${rotuloTipo(cl.divergente.tipo)}" (${cl.divergente.confianca}%). Confirme o tipo.` });
@@ -61,7 +61,7 @@ export async function executarValidacao(documentoId, { forcar = false } = {}) {
 
   let problemas = problemasDeClassificacao(doc);
   const validar = forcar || obterAnalise(doc.tipo_analise).etapas.validar;
-  if (validar && !doc.classificacao?.pendente) {
+  if (validar) {
     const { data: dup } = await supabase.rpc('contar_duplicados', { p_documento: documentoId });
     if (perfil.generico) problemas = problemas.concat(avaliar({ dados, duplicados: dup?.[0] || {} }));
     else {

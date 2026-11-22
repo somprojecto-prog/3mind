@@ -5,7 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { pode } from '@/lib/permissoes';
 import { aviso, BarraProgresso, EstadoErro, Esqueleto, mensagemErro, Roda } from '@/shared/notificacoes';
 import { ANALISES, PERFIS, obterAnalise, obterPerfil, rotuloCampo, rotuloTipo } from '../analise/perfis';
-import { confirmarTipo, pesquisarNoTexto } from '../analise/servico';
+import { confirmarTipo } from '../analise/servico';
+import { marcarTermos, pesquisar, termosDaConsulta } from '../analise/motor/pesquisa';
 import { dividirPaginas } from '../analise/motor/texto';
 import { executarValidacao, resolverValidacao } from '../validacao/servico';
 import { acordar, repetirTrabalho } from '../fila/processador';
@@ -150,23 +151,42 @@ function SeparadorResultado({ d, perfilDoc, aoLocalizar }) {
   );
 }
 
-function SeparadorOriginal({ documento, destaque }) {
+function SeparadorOriginal({ documento, destaque, aoIrPagina }) {
   const paginas = dividirPaginas(documento.texto_original);
   const [q, setQ] = useState('');
-  const termo = q.trim().length >= 2 ? q.trim() : destaque?.valor || '';
-  const resultados = pesquisarNoTexto(documento.texto_original, q);
-  const marcar = (t) => {
-    if (!termo) return t;
-    const partes = t.split(new RegExp(`(${termo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'i'));
-    return partes.map((p, i) => (i % 2 ? <mark key={i} className="an-mark">{p}</mark> : p));
-  };
+  const activa = termosDaConsulta(q).length > 0;
+  const termos = activa ? termosDaConsulta(q) : destaque?.valor ? [String(destaque.valor)] : [];
+  const r = activa ? pesquisar(documento.texto_original, q) : { exactos: [], parciais: [], sugestoes: [] };
+  const marcar = (t) => marcarTermos(t, termos).map((p, i) => (p.marcado ? <mark key={i} className="an-mark">{p.texto}</mark> : p.texto));
+  const paginasComHit = new Set([...r.exactos, ...(r.exactos.length ? [] : r.parciais)].map((x) => x.pagina));
+  const linhaResultado = (x, i) => (
+    <li key={`${x.pagina}-${x.linhaN}-${i}`}>
+      <button type="button" className="btn btn-suave" onClick={() => aoIrPagina?.(x.pagina)}>Pág. {x.pagina}</button>{' '}
+      <span>{marcar(x.linha)}</span>
+    </li>
+  );
   if (!paginas.length) return <p className="suave">O texto original ainda não está disponível.</p>;
   return (
     <>
-      <label style={{ maxWidth: 360, marginBottom: '.8rem' }}>Pesquisar no documento<input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Palavra, número ou referência" /></label>
-      {q.trim().length >= 2 && <p className="dc-fino">{resultados.length} resultado(s){resultados.length ? ': ' + [...new Set(resultados.map((r) => `pág. ${r.pagina}`))].join(', ') : ''}.</p>}
+      <label style={{ maxWidth: 420, marginBottom: '.4rem' }}>Pesquisar no documento
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder='Ex.: total 42180 ou "data de emissão"' />
+      </label>
+      <p className="dc-fino" style={{ marginTop: 0 }}>Ignora acentos e maiúsculas. Várias palavras: mostra primeiro as linhas com todas. Números encontram-se com ou sem pontos (1500 = 1.500,00).</p>
+      {activa && (
+        <div role="status" style={{ marginBottom: '.8rem' }}>
+          <p className="dc-fino"><strong>{r.exactos.length}</strong> linha(s) com tudo o que pediu{r.exactos.length ? `: ${[...new Set(r.exactos.map((x) => `pág. ${x.pagina}`))].join(', ')}` : ''}.</p>
+          {r.exactos.length > 0 && <ul className="dc-lista">{r.exactos.slice(0, 20).map(linhaResultado)}</ul>}
+          {r.parciais.length > 0 && (
+            <details open={!r.exactos.length} style={{ marginTop: '.5rem' }}>
+              <summary>Outras opções: {r.parciais.length} linha(s) com só parte das palavras</summary>
+              <ul className="dc-lista">{r.parciais.slice(0, 20).map(linhaResultado)}</ul>
+            </details>
+          )}
+          {r.sugestoes.length > 0 && <p className="dc-fino">Talvez quisesse dizer: {r.sugestoes.map((w) => <button key={w} type="button" className="btn btn-suave" onClick={() => setQ(w)}>{w}</button>)}</p>}
+        </div>
+      )}
       {paginas.map((p, i) => (
-        <details key={i} open={destaque?.pagina === i + 1 || paginas.length === 1 || (q.trim().length >= 2 && resultados.some((r) => r.pagina === i + 1))} style={{ marginBottom: '.6rem' }}>
+        <details key={i} open={destaque?.pagina === i + 1 || paginas.length === 1 || paginasComHit.has(i + 1)} style={{ marginBottom: '.6rem' }}>
           <summary>Página {i + 1}</summary>
           <div className="an-pagina">{marcar(p)}</div>
         </details>
@@ -176,17 +196,27 @@ function SeparadorOriginal({ documento, destaque }) {
 }
 
 function PainelTipo({ documento, aoConfirmar, aA }) {
-  const [tipo, setTipo] = useState(documento.tipo_documento || 'outros');
   const cl = documento.classificacao || {};
+  const actual = documento.tipo_documento || 'outros';
+  const [tipo, setTipo] = useState(actual);
+  // Outras opções: a sugestão divergente e as alternativas do classificador, sem repetir o tipo já usado.
+  const opcoes = [];
+  if (cl.divergente) opcoes.push(cl.divergente);
+  for (const a of cl.alternativas || []) if (a.confianca >= 15) opcoes.push(a);
+  if (cl.pendente === true && cl.tipo && cl.tipo !== actual) opcoes.unshift({ tipo: cl.tipo, confianca: cl.confianca });
+  const vistas = new Set([actual]);
+  const outras = opcoes.filter((o) => (vistas.has(o.tipo) ? false : vistas.add(o.tipo))).slice(0, 3);
   return (
-    <div className="an-confirmar" role="alert">
-      <strong>{cl.pendente ? 'Confirme o tipo de documento' : 'Confirmar o tipo de documento'}</strong>
+    <div className="an-confirmar" role="status">
+      <strong>Analisado como "{rotuloTipo(actual)}"{cl.pendente ? ` (${cl.confianca ?? 0}% de confiança)` : ' — o tipo que escolheu'}</strong>
       <p style={{ margin: '.4rem 0' }}>{cl.pendente
-        ? `O 3MIND acha que é "${rotuloTipo(cl.tipo)}", mas só com ${cl.confianca ?? 0}% de confiança. A análise só continua depois de confirmar.`
-        : `Escolheu "${rotuloTipo(documento.tipo_documento)}", mas o conteúdo parece ser "${rotuloTipo(cl.divergente?.tipo)}" (${cl.divergente?.confianca}%).`}</p>
+        ? 'Os resultados abaixo já usam este tipo. Se não for este, escolha uma das outras opções e a análise é refeita sem voltar a ler o ficheiro.'
+        : `Os resultados abaixo seguem a sua escolha. O conteúdo também se parece com "${rotuloTipo(cl.divergente?.tipo)}" (${cl.divergente?.confianca}%), se quiser comparar.`}</p>
       <div className="dc-accoes">
-        <select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Tipo de documento">{PERFIS.map((p) => <option key={p.id} value={p.id}>{p.rotulo}</option>)}</select>
-        <button className="btn btn-primario" disabled={aA} onClick={() => aoConfirmar(tipo)}>{aA ? <Roda /> : null} Confirmar e analisar</button>
+        <button className="btn btn-primario" disabled={aA} onClick={() => aoConfirmar(actual)}>{aA ? <Roda /> : null} Manter "{rotuloTipo(actual)}"</button>
+        {outras.map((o) => <button key={o.tipo} className="btn btn-suave" disabled={aA} onClick={() => aoConfirmar(o.tipo)}>Analisar como {rotuloTipo(o.tipo)} ({o.confianca}%)</button>)}
+        <select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Outro tipo de documento">{PERFIS.map((p) => <option key={p.id} value={p.id}>{p.rotulo}</option>)}</select>
+        {tipo !== actual && <button className="btn btn-suave" disabled={aA} onClick={() => aoConfirmar(tipo)}>Analisar como {rotuloTipo(tipo)}</button>}
       </div>
     </div>
   );
@@ -232,7 +262,7 @@ export default function Detalhe() {
   const { perfil } = useAuth();
   const [d, setD] = useState(null);
   const [erro, setErro] = useState(null);
-  const [aba, setAba] = useState('resultado');
+  const [aba, setAba] = useState(null);
   const [categorias, setCategorias] = useState([]);
   const [auditoria, setAuditoria] = useState(null);
   const [aValidar, setAValidar] = useState(false);
@@ -266,6 +296,9 @@ export default function Detalhe() {
   if (!d) return <Esqueleto linhas={8} altura={22} />;
 
   const { documento, dados, validacoes, fila } = d;
+  // Mostra primeiro o que foi pedido: pesquisa → texto; extracção → dados; validação → validações; resto → resultado.
+  const ABA_DA_ANALISE = { pesquisa: 'original', extraccao: 'dados', validacao: 'validacoes' };
+  const abaActiva = aba || ABA_DA_ANALISE[documento.tipo_analise] || 'resultado';
   const perfilDoc = obterPerfil(documento.tipo_documento);
   const precisaTipo = Boolean(documento.classificacao?.pendente || documento.classificacao?.divergente);
   const editavel = pode(perfil.papel, 'documentos.editar') && !emCurso;
@@ -352,14 +385,14 @@ export default function Detalhe() {
         <section className="cartao">
           <div className="dc-abas" role="tablist">
             {[['resultado', 'Resultado'], ['dados', 'Dados extraídos'], ['validacoes', `Validações${abertas ? ` (${abertas})` : ''}`], ['original', 'Texto original'], ['historico', 'Histórico']].map(([k, r]) => (
-              <button key={k} role="tab" aria-selected={aba === k} onClick={() => setAba(k)}>{r}</button>
+              <button key={k} role="tab" aria-selected={abaActiva === k} onClick={() => setAba(k)}>{r}</button>
             ))}
           </div>
-          {aba === 'resultado' && <SeparadorResultado d={d} perfilDoc={perfilDoc} aoLocalizar={localizar} />}
-          {aba === 'dados' && <SeparadorDados dados={dados} editavel={editavel} aoGuardar={guardar} aoDescartar={descartar} aoAcrescentar={acrescentar} aoLocalizar={localizar} perfilDoc={perfilDoc} />}
-          {aba === 'original' && <SeparadorOriginal documento={documento} destaque={origem} />}
-          {aba === 'validacoes' && <SeparadorValidacoes validacoes={validacoes} podeResolver={editavel && pode(perfil.papel, 'validacao.resolver')} podeValidar={editavel} aoResolver={resolver} aoValidar={validarDeNovo} aValidar={aValidar} />}
-          {aba === 'historico' && <SeparadorHistorico fila={fila} auditoria={verAuditoria ? auditoria : null} podeRepetir={pode(perfil.papel, 'documentos.editar')} aoRepetir={repetir} />}
+          {abaActiva === 'resultado' && <SeparadorResultado d={d} perfilDoc={perfilDoc} aoLocalizar={localizar} />}
+          {abaActiva === 'dados' && <SeparadorDados dados={dados} editavel={editavel} aoGuardar={guardar} aoDescartar={descartar} aoAcrescentar={acrescentar} aoLocalizar={localizar} perfilDoc={perfilDoc} />}
+          {abaActiva === 'original' && <SeparadorOriginal documento={documento} destaque={origem} aoIrPagina={(pagina) => setOrigem({ pagina })} />}
+          {abaActiva === 'validacoes' && <SeparadorValidacoes validacoes={validacoes} podeResolver={editavel && pode(perfil.papel, 'validacao.resolver')} podeValidar={editavel} aoResolver={resolver} aoValidar={validarDeNovo} aValidar={aValidar} />}
+          {abaActiva === 'historico' && <SeparadorHistorico fila={fila} auditoria={verAuditoria ? auditoria : null} podeRepetir={pode(perfil.papel, 'documentos.editar')} aoRepetir={repetir} />}
         </section>
       </div>
     </>
