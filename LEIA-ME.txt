@@ -1,18 +1,5 @@
-3MIND v3 · só os ficheiros alterados ou novos (em relação ao zip "3mind-revisto").
-Copie por cima do projecto, mantendo as pastas. Nenhum ficheiro foi removido.
+3MIND v4 · projecto completo (substitui o anterior). Ver docs/MELHORIAS_V4.md.
+Ficheiros soltos duplicados da raiz foram removidos; env.example passou a .env.example.
 
 Depois:  npm install && npm run build
 Testes:  node --import ./testes/registar.mjs testes/analise.mjs  e  node testes/correr.mjs
-
-Alterados (14):
- docs/PENDENTE_ANALISE_ADAPTATIVA.md
- src/modules/analise/motor/campos.js, classificar.js, texto.js, validar.js
- src/modules/analise/perfis/definicoes.js
- src/modules/analise/servico.js
- src/modules/documentos/Upload.jsx, servico.js
- src/modules/fila/processador.js
- src/modules/ocr/extracao.js, leitura.js, render.js
- src/modules/validacao/servico.js
- testes/analise.mjs
-Novos (8):
- testes/amostras/angola_p1.txt ... angola_p8.txt

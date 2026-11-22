@@ -140,5 +140,31 @@ caso(8, 'du', { numero: 'IMP-TEST-2026-031', valor_aduaneiro: '6732500', valor_f
 // 238.000 é 238 mil, não 238
 ok(Number(valor(r6, 'subtotal')) === 238000, 'valores sem decimais com ponto de milhares');
 
+// 11) pesquisa: acentos, números com pontos, todas as palavras primeiro, sugestões
+import { pesquisar, marcarTermos } from '../src/modules/analise/motor/pesquisa.js';
+const ps = pesquisar(FACTURA, 'emissao');
+ok(ps.exactos.length === 1 && ps.exactos[0].linha.startsWith('Data de emissão'), 'pesquisa ignora acentos');
+ok(pesquisar(FACTURA, '42180').exactos.length >= 1, 'pesquisa 42180 encontra 42.180,00');
+const pm = pesquisar(FACTURA, 'total pagar');
+ok(pm.exactos.length === 1 && pm.parciais.length >= 1, 'linhas com todas as palavras primeiro, parciais depois');
+ok(pesquisar(FACTURA, 'vencimeto').sugestoes.includes('Vencimento'), 'sugere palavra parecida');
+ok(marcarTermos('Total a pagar: 42.180,00 Kz', ['42180']).some((x) => x.marcado && x.texto === '42.180,00'), 'marca o número encontrado');
+
+// 12) comparação: tolerância em montantes e documentos sem valor
+import { estadoDaLinha } from '../src/modules/comparacao/comparar.js';
+ok(estadoDaLinha([[{ norma: '100.00' }], [{ norma: '100.01' }]], 'valor') === 'igual', '1 cêntimo de diferença é igual');
+ok(estadoDaLinha([[{ norma: '100.00' }], [{ norma: '101.00' }]], 'valor') === 'difere', '1 Kz de diferença difere');
+ok(estadoDaLinha([[{ norma: 'X' }], []], 'texto') === 'falta', 'valor ausente num documento = falta');
+
+// 13) extracção: NIF e total sem rótulo reconhecido
+const semRotulo = 'EMPRESA TESTE, LDA\nN.I.F 5417000001\nFactura n.º FT 1/2026\nData: 01/11/2026\nValor global a liquidar 9.999,00 Kz';
+const rs = extrairPorPerfil(obterPerfil('factura'), [semRotulo], [90]);
+ok(valor(rs, 'nif_fornecedor') === '5417000001', `nif de segurança: ${valor(rs, 'nif_fornecedor')}`);
+ok(Number(valor(rs, 'total')) === 9999, `total de segurança: ${valor(rs, 'total')}`);
+
+// 14) resumo aponta o que falta
+const rFalta = resumir(obterPerfil('factura'), [{ campo: 'numero', valor: 'FT 1', confianca: 90 }], [semRotulo]);
+ok(/Não foi possível ler: .*Total/.test(rFalta), `resumo indica campos em falta: ${rFalta}`);
+
 console.log(falhas ? `${falhas} falhas` : 'tudo ok');
 process.exit(falhas ? 1 : 0);
