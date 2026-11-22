@@ -16,20 +16,27 @@ import {
   acrescentarDado, carregarAuditoriaDoDocumento, carregarDetalhe, corrigirDado, definirCategoria,
   descarregarFicheiro, eliminarDocumento, listarCategorias, reprocessarDocumento,
 } from './servico';
+import { descarregarResultado } from './resultado';
 
 function Visualizador({ documento, pagina }) {
   const [url, setUrl] = useState(null);
   const [falha, setFalha] = useState(false);
+  const [ausente, setAusente] = useState(false);
   useEffect(() => {
     let criado = null;
     let cancelado = false;
-    setUrl(null); setFalha(false);
-    descarregarFicheiro(documento.storage_path)
-      .then((b) => { if (!cancelado) { criado = URL.createObjectURL(new Blob([b], { type: documento.mime_type })); setUrl(criado); } })
+    setUrl(null); setFalha(false); setAusente(false);
+    descarregarFicheiro(documento)
+      .then((b) => {
+        if (cancelado) return;
+        if (!b) { setAusente(true); return; }
+        criado = URL.createObjectURL(new Blob([b], { type: documento.mime_type })); setUrl(criado);
+      })
       .catch(() => { if (!cancelado) setFalha(true); });
     return () => { cancelado = true; if (criado) URL.revokeObjectURL(criado); };
-  }, [documento.storage_path, documento.mime_type]);
+  }, [documento.id, documento.storage_path, documento.mime_type]);
 
+  if (ausente) return <p className="suave">O ficheiro original não é guardado no sistema: só existe no computador de quem o enviou, e apenas durante 7 dias. Os dados lidos continuam disponíveis nos outros separadores.</p>;
   if (falha) return <EstadoErro titulo="Não foi possível mostrar o ficheiro" texto="Tente recarregar a página." />;
   if (!url) return <Esqueleto altura={360} />;
   return (
@@ -334,6 +341,9 @@ export default function Detalhe() {
   const repetir = async (f) => {
     try { await repetirTrabalho(f.id, id, { todos: documento.enviado_por !== perfil.id }); await carregar(); aviso.info('O documento voltou à fila.'); } catch (e) { aviso.erro(mensagemErro(e, 'repetir o processamento')); }
   };
+  const descarregar = async () => {
+    try { await descarregarResultado(id); await carregar(); aviso.sucesso('Resultado descarregado.'); } catch (e) { aviso.erro(mensagemErro(e, 'descarregar o resultado')); }
+  };
   const reprocessar = async () => {
     if (!window.confirm('Reprocessar apaga os dados lidos e as correcções feitas à mão neste documento, e lê o ficheiro outra vez. Continuar?')) return;
     try { await reprocessarDocumento(id); await carregar(); aviso.info('O documento voltou à fila.'); acordar({ todos: documento.enviado_por !== perfil.id }); } catch (e) { aviso.erro(mensagemErro(e, 'reprocessar')); }
@@ -355,6 +365,7 @@ export default function Detalhe() {
       <div className="dc-cabeca">
         <div><h2 style={{ marginBottom: '.3rem' }}>{documento.nome_ficheiro}</h2><EstadoTag estado={documento.estado} /> <span className="an-etiqueta">{rotuloTipo(documento.tipo_documento)}</span><span className="an-etiqueta">{obterAnalise(documento.tipo_analise).rotulo}</span></div>
         <div className="dc-accoes">
+          <button className="btn btn-primario" onClick={descarregar}>Descarregar resultado</button>
           {pode(perfil.papel, 'fila.gerir') && <button className="btn btn-suave" onClick={reprocessar} disabled={emCurso}>Reprocessar</button>}
           {pode(perfil.papel, 'admin.utilizadores') && <button className="btn btn-suave dc-perigo" onClick={eliminar}><Trash2 size={15} aria-hidden="true" />Eliminar</button>}
         </div>

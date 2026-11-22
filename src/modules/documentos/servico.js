@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { TAMANHO_MAXIMO, TIPOS_ACEITES } from '../ocr/config';
+import { apagarOriginal, guardarOriginal, obterOriginal } from './armazem';
 
 export const POR_PAGINA = 20;
 
@@ -37,22 +38,14 @@ async function sha256(ficheiro) {
   return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-const nomeSeguro = (nome) =>
-  nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.\-]+/g, '_').slice(-100);
-
-/** Envia para o bucket privado, regista o documento e põe-no na fila. Devolve o id do documento. */
+/** Guarda o original só neste computador, regista os dados do documento e põe-no na fila. Devolve o id do documento. */
 export async function enviarDocumento(ficheiro, utilizadorId, categoriaId = null, { tipoDocumento = null, tipoAnalise = 'completa' } = {}) {
   const erro = await validarFicheiro(ficheiro);
   if (erro) throw new ErroUtilizador(erro);
   const hash = await sha256(ficheiro);
-  const caminho = `${utilizadorId}/${crypto.randomUUID()}-${nomeSeguro(ficheiro.name)}`;
-
-  const { error: eUp } = await supabase.storage.from('documentos').upload(caminho, ficheiro, { contentType: tipoDe(ficheiro), upsert: false });
-  if (eUp) throw eUp;
 
   const { data: doc, error: eDoc } = await supabase.from('documentos').insert({
     nome_ficheiro: ficheiro.name.slice(0, 200),
-    storage_path: caminho,
     mime_type: tipoDe(ficheiro),
     tamanho_bytes: ficheiro.size,
     categoria_id: categoriaId || null,
@@ -62,7 +55,11 @@ export async function enviarDocumento(ficheiro, utilizadorId, categoriaId = null
     enviado_por: utilizadorId,
     hash_sha256: hash,
   }).select('id').single();
-  if (eDoc) { await supabase.storage.from('documentos').remove([caminho]); throw eDoc; } // só o administrador consegue remover; sem efeito para os restantes
+  if (eDoc) {
+    if (/limite di[aá]rio/i.test(eDoc.message || '')) throw new ErroUtilizador(eDoc.message);
+    throw eDoc;
+  }
+  await guardarOriginal(doc.id, ficheiro, tipoDe(ficheiro)); // o original fica só neste computador
 
   const { error: eFila } = await supabase.from('fila_processamento').insert({ documento_id: doc.id });
   if (eFila) throw eFila;
@@ -74,7 +71,7 @@ function limparBusca(q) { return String(q || '').replace(/[,()%*\\"']/g, ' ').re
 
 export async function listarDocumentos({ q, estado, categoria, tipo, de, ate, pagina = 0 }) {
   let query = supabase.from('documentos')
-    .select('id, nome_ficheiro, estado, tipo_documento, nif, referencia, data_documento, paginas, criado_em, categorias(nome), profiles(nome)', { count: 'exact' })
+    .select('id, nome_ficheiro, estado, tipo_documento, nif, referencia, data_documento, paginas, criado_em, enviado_por, descarregado_em, categorias(nome), profiles(nome)', { count: 'exact' })
     .order('criado_em', { ascending: false })
     .range(pagina * POR_PAGINA, pagina * POR_PAGINA + POR_PAGINA - 1);
 
@@ -125,9 +122,13 @@ export async function carregarDetalhe(id) {
   return { documento: doc.data, dados: dados.data, validacoes: validacoes.data, fila: fila.data };
 }
 
-export async function descarregarFicheiro(caminho) {
-  const { data, error } = await supabase.storage.from('documentos').download(caminho);
-  if (error || !data) throw error || new Error('Ficheiro não encontrado.');
+/** Original: primeiro a cópia deste computador; documentos antigos podem ainda estar no armazenamento. Devolve null se não existir. */
+export async function descarregarFicheiro(documento) {
+  const local = await obterOriginal(documento.id);
+  if (local) return local;
+  if (!documento.storage_path) return null;
+  const { data, error } = await supabase.storage.from('documentos').download(documento.storage_path);
+  if (error || !data) return null;
   return data;
 }
 
@@ -176,6 +177,10 @@ export async function definirCategoria(documentoId, categoriaId) {
 
 /** Só supervisor/administrador (a base de dados recusa os outros). Apaga os dados lidos e volta a pôr na fila. */
 export async function reprocessarDocumento(documentoId) {
+  const { data: d0 } = await supabase.from('documentos').select('storage_path').eq('id', documentoId).single();
+  if (!(await obterOriginal(documentoId)) && !d0?.storage_path) {
+    throw new ErroUtilizador('O ficheiro original só existe no computador de quem o enviou. Peça para o enviar de novo.');
+  }
   const passos = [
     supabase.from('dados_extraidos').delete().eq('documento_id', documentoId),
     supabase.from('validacoes').delete().eq('documento_id', documentoId),
@@ -191,8 +196,11 @@ export async function reprocessarDocumento(documentoId) {
 
 /** Só administrador. */
 export async function eliminarDocumento(documento) {
-  const { error: eS } = await supabase.storage.from('documentos').remove([documento.storage_path]);
-  if (eS) throw eS;
+  if (documento.storage_path) {
+    const { error: eS } = await supabase.storage.from('documentos').remove([documento.storage_path]);
+    if (eS) throw eS;
+  }
+  await apagarOriginal(documento.id);
   const { error } = await supabase.from('documentos').delete().eq('id', documento.id);
   if (error) throw error;
 }

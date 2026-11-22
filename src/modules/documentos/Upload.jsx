@@ -108,7 +108,7 @@ export default function Upload() {
         <>
           <p className="suave dc-sub">
             <strong>{rotuloTipo(tipo)}</strong> · {obterAnalise(analise).rotulo}. Aceita {Object.values(TIPOS_ACEITES).join(', ')} até {TAMANHO_MAXIMO / 1048576} MB cada.
-            A leitura (OCR) acontece neste computador, por isso deixe esta janela aberta até terminar. Use apenas documentos de teste enquanto o sistema não estiver aprovado pela AGT.
+            A leitura (OCR) acontece neste computador, por isso deixe esta janela aberta até terminar. O ficheiro original não é enviado para o sistema; no fim, o resultado é descarregado para este computador e fica disponível 7 dias. Máximo de 200 documentos por dia. Use apenas documentos de teste enquanto o sistema não estiver aprovado pela AGT.
           </p>
           <label className="grelha-form" style={{ maxWidth: 320, marginBottom: '1rem' }}>Categoria (opcional)
             <select value={categoria} onChange={(e) => setCategoria(e.target.value)}>

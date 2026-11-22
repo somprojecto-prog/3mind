@@ -6,6 +6,8 @@ import { PAPEIS, pode } from '@/lib/permissoes';
 import Logo from '@/shared/componentes/Logo';
 import { Carregando } from '@/shared/componentes/Estados';
 import { MODULOS } from './modulos';
+import { supabase } from '@/lib/supabase';
+import { limparAntigos } from '@/modules/documentos/armazem';
 
 export default function Layout() {
   const { perfil, sair } = useAuth();
@@ -19,6 +21,11 @@ export default function Layout() {
     navegar(q ? `/documentos?q=${encodeURIComponent(q)}` : '/documentos');
   };
   useEffect(() => setAberto(false), [local.pathname]);
+
+  useEffect(() => { // limpeza: dados com mais de 7 dias e cópias locais antigas
+    supabase.rpc('apagar_expirados').then(() => {}, () => {});
+    limparAntigos();
+  }, []);
 
   useEffect(() => {
     if (!pode(perfil.papel, 'documentos.enviar')) return undefined;

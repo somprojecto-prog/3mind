@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { ErroLeitura } from '../ocr/erros';
 import { analisarDocumento, gravarLeitura } from '../analise/servico';
+import { descarregarFicheiro } from '../documentos/servico';
+import { descarregarResultado } from '../documentos/resultado';
 
 // Processador da fila: corre no navegador do utilizador que enviou os documentos (OCR no cliente).
 // Trabalha um documento de cada vez, grava o progresso e um ponto de retoma após cada página.
@@ -95,8 +97,8 @@ async function processar(item) {
     avisar({ tipo: 'inicio', documentoId: docId });
     await relatar({ progresso: Math.max(item.progresso || 0, 1) });
 
-    const { data: blob, error: eDown } = await supabase.storage.from('documentos').download(item.documentos.storage_path);
-    if (eDown || !blob) throw new Error('Não foi possível obter o ficheiro do armazenamento.');
+    const blob = await descarregarFicheiro({ id: docId, storage_path: item.documentos.storage_path });
+    if (!blob) throw new Error('Não foi possível obter o ficheiro: o original só existe no computador de quem o enviou. Envie-o de novo.');
 
     const { lerDocumento } = await import('../ocr/leitura'); // carrega PDF.js e Tesseract só quando há trabalho
     const leitura = await lerDocumento(blob, item.documentos.mime_type, {
@@ -110,6 +112,8 @@ async function processar(item) {
     await analisarDocumento(docId);
     await relatar({ estado: 'concluido', progresso: 100, concluido_em: new Date().toISOString(), checkpoint: null, erro_mensagem: null });
     avisar({ tipo: 'fim', documentoId: docId });
+    // Descarregamento obrigatório do resultado: os dados ficam só 7 dias no sistema.
+    if (item.documentos.enviado_por === utilizadorId) descarregarResultado(docId).catch(() => {});
   } catch (e) {
     if (e?.interrompido) return; // fica "em processamento"; será retomado mais tarde
     console.error('[3MIND] falha ao processar o documento', docId, e);

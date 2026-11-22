@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { pode } from '@/lib/permissoes';
 import { aviso, EstadoErro, EstadoVazio, Esqueleto, mensagemErro } from '@/shared/notificacoes';
 import { EstadoTag } from './Componentes';
+import { descarregarResultado } from './resultado';
 import { ESTADOS, ROTULO_ESTADO, formatarData, formatarDataHora } from './estados';
 import { PERFIS, rotuloTipo } from '../analise/perfis';
 import { POR_PAGINA, apagarCategoria, criarCategoria, listarCategorias, listarDocumentos } from './servico';
@@ -84,6 +85,11 @@ export default function Lista() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busca, filtros.estado, filtros.categoria, filtros.tipo, filtros.de, filtros.ate, pagina, versao]);
 
+  const porDescarregar = (dados?.linhas || []).filter((d) => !d.descarregado_em && ['processado', 'revisao'].includes(d.estado) && d.enviado_por === perfil.id);
+  const descarregarTodos = async () => {
+    try { for (const d of porDescarregar) await descarregarResultado(d.id); setVersao((v) => v + 1); }
+    catch (e) { aviso.erro(mensagemErro(e, 'descarregar os resultados')); }
+  };
   const mudar = (campo) => (e) => { setPagina(0); setFiltros((f) => ({ ...f, [campo]: e.target.value })); };
   const paginas = Math.max(1, Math.ceil((dados?.total ?? 0) / POR_PAGINA));
   const mostraAutor = perfil.papel !== 'operador';
@@ -93,6 +99,11 @@ export default function Lista() {
     <>
       {pode(perfil.papel, 'fila.gerir') && <GerirCategorias categorias={categorias} aoMudar={carregarCategorias} />}
       <section className="cartao">
+        <p className="suave dc-sub">Por segurança e privacidade, os ficheiros originais não são guardados no sistema e os resultados ficam disponíveis apenas 7 dias. Descarregue o resultado de cada documento para guardar o seu registo.</p>
+        {porDescarregar.length > 0 && (
+          <p role="alert"><strong>{porDescarregar.length} resultado(s) por descarregar.</strong>{' '}
+            <button className="btn btn-primario" onClick={descarregarTodos}>Descarregar agora</button></p>
+        )}
         <div className="dc-filtros">
           <label>Pesquisar<input type="search" placeholder="Nome, NIF, referência ou data (dd/mm/aaaa)" value={filtros.q} onChange={mudar('q')} /></label>
           <label>Estado
@@ -135,7 +146,7 @@ export default function Lista() {
                       <td>{d.nif || '—'}</td>
                       <td>{d.referencia || '—'}</td>
                       <td>{formatarData(d.data_documento)}</td>
-                      <td><EstadoTag estado={d.estado} /></td>
+                      <td><EstadoTag estado={d.estado} />{!d.descarregado_em && ['processado', 'revisao'].includes(d.estado) && <span className="suave"> · por descarregar</span>}</td>
                       {mostraAutor && <td>{d.profiles?.nome || '—'}</td>}
                       <td>{formatarDataHora(d.criado_em)}</td>
                     </tr>
