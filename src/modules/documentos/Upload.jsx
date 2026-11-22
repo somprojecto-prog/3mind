@@ -9,7 +9,7 @@ import { TIPOS_ACEITES, TAMANHO_MAXIMO } from '../ocr/config';
 import { iniciarProcessador } from '../fila/processador';
 import { ANALISES, AUTO, PERFIS, obterAnalise, rotuloTipo } from '../analise/perfis';
 import { norm } from '../analise/motor/texto';
-import { ErroUtilizador, enviarDocumento, listarCategorias } from './servico';
+import { ErroUtilizador, contarPorDescarregar, enviarDocumento, listarCategorias } from './servico';
 
 const Icone = ({ nome, ...p }) => { const C = Icones[nome] || Icones.File; return <C aria-hidden="true" {...p} />; };
 
@@ -47,6 +47,10 @@ export default function Upload() {
   async function enviar(lista) {
     const novos = [...lista].map((f) => ({ id: crypto.randomUUID(), nome: f.name, estado: 'espera', ficheiro: f }));
     if (!novos.length) return;
+    try {
+      const por = await contarPorDescarregar(perfil.id);
+      if (por > 0) { aviso.erro(`Tem ${por} resultado(s) por descarregar. Descarregue-os na lista de documentos antes de enviar mais (ficam disponíveis só 7 dias).`); return; }
+    } catch { /* se a verificação falhar, não impede o envio */ }
     setItens((l) => [...novos, ...l]);
     setAEnviar(true);
     let enviados = 0;

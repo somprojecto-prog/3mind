@@ -14,12 +14,12 @@ function abrir() {
     p.onerror = () => reject(p.error);
   });
 }
-async function operar(modo, fn) {
+async function operar(modo, fn, loja = LOJA) {
   const bd = await abrir();
   try {
     return await new Promise((resolve, reject) => {
-      const t = bd.transaction(LOJA, modo);
-      const r = fn(t.objectStore(LOJA));
+      const t = bd.transaction(loja, modo);
+      const r = fn(t.objectStore(loja));
       t.oncomplete = () => resolve(r?.result);
       t.onerror = () => reject(t.error);
       t.onabort = () => reject(t.error);
@@ -27,13 +27,33 @@ async function operar(modo, fn) {
   } finally { bd.close(); }
 }
 
+// Cifra o original com AES-GCM; a chave é gerada neste browser e não pode ser exportada.
+// Protege contra a leitura casual dos ficheiros do perfil do browser; não substitui a protecção do computador.
+async function chave() {
+  let k = await operar('readonly', (l) => l.get('k'), 'chave');
+  if (!k) {
+    k = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    await operar('readwrite', (l) => l.put(k, 'k'), 'chave');
+  }
+  return k;
+}
+
 export async function guardarOriginal(id, blob, mime) {
   memoria.set(id, { blob, mime, em: Date.now() });
-  try { await operar('readwrite', (l) => l.put({ blob, mime, em: Date.now() }, id)); } catch { /* fica em memória */ }
+  try {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const dados = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await chave(), await blob.arrayBuffer());
+    await operar('readwrite', (l) => l.put({ dados, iv, mime, em: Date.now() }, id));
+  } catch { /* fica em memória */ }
 }
 export async function obterOriginal(id) {
   if (memoria.has(id)) return memoria.get(id).blob;
-  try { const r = await operar('readonly', (l) => l.get(id)); return r?.blob || null; } catch { return null; }
+  try {
+    const r = await operar('readonly', (l) => l.get(id));
+    if (!r?.dados) return null;
+    const claro = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: r.iv }, await chave(), r.dados);
+    return new Blob([claro], { type: r.mime });
+  } catch { return null; }
 }
 export async function apagarOriginal(id) {
   memoria.delete(id);

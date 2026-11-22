@@ -13,3 +13,8 @@ Falta / não verificado:
 - Reprocessar/supervisor a processar docs de outros só funciona se o original existir nesse PC.
 - Original no IndexedDB não é cifrado.
 - Cálculo do limite diário: 200 no total de todas as contas, dia de Luanda.
+
+## Actualização
+- Original no browser agora cifrado (AES-GCM, chave não exportável). Não testado em browser.
+- Novos envios bloqueados enquanto houver resultados processados por descarregar (Upload.jsx + contarPorDescarregar).
+- Continua por decidir: apagar a auditoria aos 7 dias; limpar à mão o bucket `documentos` (ficheiros antigos).

@@ -204,3 +204,11 @@ export async function eliminarDocumento(documento) {
   const { error } = await supabase.from('documentos').delete().eq('id', documento.id);
   if (error) throw error;
 }
+
+/** Resultados já processados que o utilizador ainda não descarregou (bloqueiam novos envios). */
+export async function contarPorDescarregar(utilizadorId) {
+  const { count, error } = await supabase.from('documentos').select('id', { count: 'exact', head: true })
+    .eq('enviado_por', utilizadorId).is('descarregado_em', null).in('estado', ['processado', 'revisao']);
+  if (error) throw error;
+  return count || 0;
+}
