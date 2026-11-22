@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LogOut, Menu, X } from 'lucide-react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { LogOut, Menu, X, Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { PAPEIS, pode } from '@/lib/permissoes';
 import Logo from '@/shared/componentes/Logo';
@@ -11,6 +11,13 @@ export default function Layout() {
   const { perfil, sair } = useAuth();
   const [aberto, setAberto] = useState(false);
   const local = useLocation();
+  const navegar = useNavigate();
+  const [termo, setTermo] = useState('');
+  const pesquisar = (e) => {
+    e.preventDefault();
+    const q = termo.trim();
+    navegar(q ? `/documentos?q=${encodeURIComponent(q)}` : '/documentos');
+  };
   useEffect(() => setAberto(false), [local.pathname]);
 
   useEffect(() => {
@@ -51,6 +58,11 @@ export default function Layout() {
           <button className="btn-icone menu-botao" aria-label={aberto ? 'Fechar menu' : 'Abrir menu'} onClick={() => setAberto(!aberto)}>
             {aberto ? <X size={20} /> : <Menu size={20} />}
           </button>
+          <form className="topo-pesquisa" role="search" onSubmit={pesquisar}>
+            <Logo tamanho={22} />
+            <input type="search" aria-label="Pesquisar documentos" placeholder="Pesquisar documentos: nome, NIF, referência…" value={termo} onChange={(e) => setTermo(e.target.value)} />
+            <button type="submit" className="btn-icone" aria-label="Pesquisar"><Search size={18} aria-hidden="true" /></button>
+          </form>
           <div className="topo-utilizador">
             <div>
               <strong>{perfil.nome || perfil.email}</strong>

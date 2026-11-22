@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,8 +45,11 @@ function GerirCategorias({ categorias, aoMudar }) {
 
 export default function Lista() {
   const { perfil } = useAuth();
-  const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
-  const [busca, setBusca] = useState('');
+  const [params] = useSearchParams();
+  const qInicial = params.get('q') || '';
+  const [filtros, setFiltros] = useState({ ...FILTROS_VAZIOS, q: qInicial });
+  const [busca, setBusca] = useState(qInicial);
+  useEffect(() => { setFiltros((f) => (f.q === qInicial ? f : { ...f, q: qInicial })); }, [qInicial]);
   const [pagina, setPagina] = useState(0);
   const [versao, setVersao] = useState(0);
   const [dados, setDados] = useState(null);
